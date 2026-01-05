@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from libraryreach.catalogs.validate import validate_catalogs
 from libraryreach.planning.deserts import DesertConfig, compute_access_deserts_grid, deserts_points_geojson
 from libraryreach.planning.outreach import OutreachConfig, recommend_outreach_sites
 from libraryreach.scoring.accessibility import build_scoring_config, compute_accessibility_scores
@@ -36,16 +37,13 @@ def run_phase1(settings: dict[str, Any]) -> None:
 
     libraries = _read_csv(_libraries_catalog_path(settings))
     outreach_candidates = _read_csv(_outreach_catalog_path(settings))
-    stops = _read_csv(_stops_path(settings))
 
-    for df_name, df, required in [
-        ("libraries", libraries, {"id", "name", "lat", "lon", "city", "district"}),
-        ("outreach_candidates", outreach_candidates, {"id", "name", "lat", "lon", "city", "district"}),
-        ("stops", stops, {"stop_id", "lat", "lon", "mode"}),
-    ]:
-        missing = required - set(df.columns)
-        if missing:
-            raise ValueError(f"{df_name} missing columns: {sorted(missing)}")
+    validate_catalogs(settings, libraries=libraries, outreach_candidates=outreach_candidates, write_report=True)
+
+    stops = _read_csv(_stops_path(settings))
+    missing_stops = {"stop_id", "lat", "lon", "mode"} - set(stops.columns)
+    if missing_stops:
+        raise ValueError(f"stops missing columns: {sorted(missing_stops)}")
 
     radii_m = [int(x) for x in settings["buffers"]["radii_m"]]
     ref_lat_strategy = settings.get("spatial", {}).get("distance", {}).get("reference_lat_strategy", "mean")
@@ -114,4 +112,3 @@ def run_phase1(settings: dict[str, Any]) -> None:
         config=outreach_config,
     )
     recommendations.to_csv(processed_dir / "outreach_recommendations.csv", index=False)
-

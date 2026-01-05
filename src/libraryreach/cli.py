@@ -15,6 +15,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("fetch-stops", parents=[common], help="Fetch transit stops (bus + metro) from TDX")
     run_all = sub.add_parser("run-all", parents=[common], help="Run the full Phase 1 pipeline")
     run_all.add_argument("--skip-fetch", action="store_true", help="Skip TDX fetch (use existing stops.csv)")
+    sub.add_parser("validate-catalogs", parents=[common], help="Validate catalog CSVs and write a report")
     sub.add_parser("api-info", parents=[common], help="Print API run instructions")
     return parser
 
@@ -35,6 +36,17 @@ def main(argv: list[str] | None = None) -> None:
         from libraryreach.ingestion.fetch_stops import fetch_and_write_stops
 
         fetch_and_write_stops(settings)
+        return
+
+    if args.command == "validate-catalogs":
+        from libraryreach.catalogs.validate import format_validation_summary, validate_catalogs
+
+        import pandas as pd
+
+        libraries = pd.read_csv(Path(settings["paths"]["catalogs_dir"]) / "libraries.csv")
+        outreach = pd.read_csv(Path(settings["paths"]["catalogs_dir"]) / "outreach_candidates.csv")
+        report = validate_catalogs(settings, libraries=libraries, outreach_candidates=outreach, write_report=True)
+        print(format_validation_summary(report))
         return
 
     if args.command == "run-all":

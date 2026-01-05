@@ -1,8 +1,7 @@
-id,name,type,address,lat,lon,city,district
-TPE-C-001,Sample Community Center - Taipei,community_center,Sample address,25.0375,121.5637,Taipei,Xinyi
-NWT-S-001,Sample School - New Taipei,school,Sample address,25.0165,121.4600,NewTaipei,Banqiao
-TYO-C-001,Sample Community Center - Taoyuan,community_center,Sample address,24.9970,121.3000,Taoyuan,Taoyuan
-TXG-S-001,Sample School - Taichung,school,Sample address,24.1500,120.6700,Taichung,West
-TNN-C-001,Sample Community Center - Tainan,community_center,Sample address,23.0008,120.2250,Tainan,East
-KHH-S-001,Sample School - Kaohsiung,school,Sample address,22.6280,120.3120,Kaohsiung,Lingya
-
+id,name,type,address,lat,lon,city,district,owner,notes,source
+TPE-C-001,Sample Community Center - Taipei,community_center,Sample address,25.0375,121.5637,Taipei,Xinyi,,,"sample"
+NWT-S-001,Sample School - New Taipei,school,Sample address,25.0165,121.4600,NewTaipei,Banqiao,,,"sample"
+TYO-C-001,Sample Community Center - Taoyuan,community_center,Sample address,24.9970,121.3000,Taoyuan,Taoyuan,,,"sample"
+TXG-S-001,Sample School - Taichung,school,Sample address,24.1500,120.6700,Taichung,West,,,"sample"
+TNN-C-001,Sample Community Center - Tainan,community_center,Sample address,23.0008,120.2250,Tainan,East,,,"sample"
+KHH-S-001,Sample School - Kaohsiung,school,Sample address,22.6280,120.3120,Kaohsiung,Lingya,,,"sample"

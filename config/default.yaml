@@ -69,8 +69,15 @@ planning:
     top_n_per_city: 10
     weight_coverage: 0.7
     weight_site_access: 0.3
+    allowed_candidate_types:
+      - community_center
+      - school
+      - park
+      - market
+      - transit_hub
+      - government_office
+      - other
 
 api:
   host: 127.0.0.1
   port: 8000
-
