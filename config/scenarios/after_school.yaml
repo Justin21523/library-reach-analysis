@@ -1,0 +1,10 @@
+scenario:
+  name: after_school
+scoring:
+  mode_weights:
+    bus: 0.7
+    metro: 0.3
+planning:
+  deserts:
+    threshold_score: 35
+

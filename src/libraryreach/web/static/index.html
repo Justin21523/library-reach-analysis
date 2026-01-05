@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LibraryReach (MVP)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div id="layout">
+      <div id="sidebar">
+        <div class="section">
+          <h1>LibraryReach</h1>
+          <p class="muted">Baseline: transit stop density within 500m/1km buffers.</p>
+          <div id="status" class="muted"></div>
+        </div>
+
+        <div class="section">
+          <h2>Library Details</h2>
+          <div id="library-details" class="muted">Click a library marker.</div>
+        </div>
+
+        <div class="section">
+          <h2>Outreach Recommendations</h2>
+          <div id="outreach-list" class="muted">Loading…</div>
+        </div>
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

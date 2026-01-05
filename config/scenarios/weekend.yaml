@@ -1,0 +1,7 @@
+scenario:
+  name: weekend
+scoring:
+  mode_weights:
+    bus: 0.55
+    metro: 0.45
+

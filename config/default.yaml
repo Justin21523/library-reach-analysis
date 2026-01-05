@@ -1,0 +1,76 @@
+project:
+  name: LibraryReach
+  timezone: Asia/Taipei
+  data_dir: data
+  catalogs_dir: data/catalogs
+  raw_dir: data/raw
+  processed_dir: data/processed
+  cache_dir: cache
+  logs_dir: logs
+  reports_dir: reports
+
+aoi:
+  # TDX City codes for multi-city analysis (adjust as needed).
+  cities:
+    - Taipei
+    - NewTaipei
+    - Taoyuan
+    - Taichung
+    - Tainan
+    - Kaohsiung
+
+buffers:
+  radii_m: [500, 1000]
+
+tdx:
+  base_url: https://tdx.transportdata.tw
+  token_url: https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token
+  request_timeout_s: 30
+  page_size: 5000
+  cache_ttl_s: 86400
+  endpoints:
+    bus_stops_by_city: /api/basic/v2/Bus/Stop/City/{city}
+    metro_stations_by_operator: /api/basic/v2/Rail/Metro/Station/OperatorCode/{operator}
+  metro_operator_codes: [TRTC, TYMC, KRTC]
+
+spatial:
+  # Baseline metric conversion: equirectangular projection for short-range buffers (<= 1km).
+  distance:
+    method: equirectangular
+    reference_lat_strategy: mean
+  grid:
+    cell_size_m: 1000
+
+scoring:
+  mode_weights:
+    bus: 0.6
+    metro: 0.4
+  radius_weights:
+    "500": 0.6
+    "1000": 0.4
+  # Target densities (stops per km^2) used for simple normalization -> 0..100.
+  density_targets_per_km2:
+    bus:
+      "500": 20
+      "1000": 10
+    metro:
+      "500": 2
+      "1000": 1
+
+planning:
+  deserts:
+    library_search_radius_m: 3000
+    threshold_score: 30
+    distance_decay:
+      type: linear
+      zero_at_m: 3000
+  outreach:
+    coverage_radius_m: 1000
+    top_n_per_city: 10
+    weight_coverage: 0.7
+    weight_site_access: 0.3
+
+api:
+  host: 127.0.0.1
+  port: 8000
+

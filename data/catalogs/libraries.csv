@@ -1,0 +1,8 @@
+id,name,address,lat,lon,city,district
+TPE-001,Sample Library - Taipei,Sample address,25.0330,121.5654,Taipei,Xinyi
+NWT-001,Sample Library - New Taipei,Sample address,25.0120,121.4637,NewTaipei,Banqiao
+TYO-001,Sample Library - Taoyuan,Sample address,24.9936,121.3010,Taoyuan,Taoyuan
+TXG-001,Sample Library - Taichung,Sample address,24.1477,120.6736,Taichung,West
+TNN-001,Sample Library - Tainan,Sample address,22.9999,120.2270,Tainan,East
+KHH-001,Sample Library - Kaohsiung,Sample address,22.6263,120.3133,Kaohsiung,Lingya
+
