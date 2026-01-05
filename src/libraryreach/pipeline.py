@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from libraryreach.catalogs.load import load_libraries_catalog, load_outreach_candidates_catalog
 from libraryreach.catalogs.validate import validate_catalogs
 from libraryreach.planning.deserts import DesertConfig, compute_access_deserts_grid, deserts_points_geojson
 from libraryreach.planning.outreach import OutreachConfig, recommend_outreach_sites
@@ -35,8 +36,8 @@ def run_phase1(settings: dict[str, Any]) -> None:
     processed_dir = Path(settings["paths"]["processed_dir"])
     processed_dir.mkdir(parents=True, exist_ok=True)
 
-    libraries = _read_csv(_libraries_catalog_path(settings))
-    outreach_candidates = _read_csv(_outreach_catalog_path(settings))
+    libraries = load_libraries_catalog(settings)
+    outreach_candidates = load_outreach_candidates_catalog(settings)
 
     validate_catalogs(settings, libraries=libraries, outreach_candidates=outreach_candidates, write_report=True)
 

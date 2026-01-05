@@ -18,6 +18,17 @@ aoi:
     - Taichung
     - Tainan
     - Kaohsiung
+  # Optional city name aliases (useful when catalogs use Chinese city names).
+  city_aliases:
+    台北市: Taipei
+    臺北市: Taipei
+    新北市: NewTaipei
+    桃園市: Taoyuan
+    台中市: Taichung
+    臺中市: Taichung
+    台南市: Tainan
+    臺南市: Tainan
+    高雄市: Kaohsiung
 
 buffers:
   radii_m: [500, 1000]

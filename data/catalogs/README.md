@@ -11,6 +11,7 @@ Both catalogs are designed to support **multi-city** analysis.
 
 - `id` must be unique within each catalog and stable over time.
 - `city` should match TDX city codes used in `config/default.yaml` (e.g., `Taipei`, `NewTaipei`, `Taoyuan`).
+  - If your source data uses Chinese city names, add mappings under `aoi.city_aliases` in `config/default.yaml`.
 - `lat`/`lon` are WGS84 decimal degrees.
 - Prefer English identifiers; free-text fields can be bilingual if needed.
 
@@ -58,4 +59,3 @@ Allowed `type` values (default):
 - `transit_hub`
 - `government_office`
 - `other`
-

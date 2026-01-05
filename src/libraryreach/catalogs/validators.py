@@ -19,6 +19,8 @@ class CatalogValidationResult:
 
 
 def _is_missing(value: Any) -> bool:
+    if pd.isna(value):
+        return True
     if value is None:
         return True
     if isinstance(value, float) and np.isnan(value):
@@ -40,11 +42,12 @@ def _validate_unique_nonempty_id(df: pd.DataFrame, *, id_col: str, label: str) -
     if id_col not in df.columns:
         return errors, warnings
 
-    ids = df[id_col].astype(str)
-    if (ids.str.strip() == "").any():
+    ids = df[id_col].astype("string").str.strip()
+    missing = ids.isna() | (ids == "")
+    if missing.any():
         errors.append(f"{label}: '{id_col}' contains empty values")
 
-    dup = ids[ids.duplicated(keep=False)]
+    dup = ids[~missing][ids[~missing].duplicated(keep=False)]
     if not dup.empty:
         examples = ", ".join(sorted(set(dup.tolist()))[:5])
         errors.append(f"{label}: '{id_col}' contains duplicates (e.g., {examples})")
@@ -120,8 +123,8 @@ def validate_libraries_catalog(
     warnings.extend(w)
 
     if allowed_cities is not None:
-        cities = libraries["city"].astype(str).str.strip()
-        unknown = sorted(set(cities.unique()) - set(allowed_cities))
+        cities = libraries["city"].astype("string").str.strip().dropna()
+        unknown = sorted(set(cities.unique()) - set(map(str, allowed_cities)))
         if unknown:
             errors.append(f"libraries: unknown city values not in config aoi.cities: {unknown}")
 
@@ -164,14 +167,14 @@ def validate_outreach_candidates_catalog(
     warnings.extend(w)
 
     if allowed_cities is not None:
-        cities = outreach_candidates["city"].astype(str).str.strip()
-        unknown = sorted(set(cities.unique()) - set(allowed_cities))
+        cities = outreach_candidates["city"].astype("string").str.strip().dropna()
+        unknown = sorted(set(cities.unique()) - set(map(str, allowed_cities)))
         if unknown:
             errors.append(f"outreach_candidates: unknown city values not in config aoi.cities: {unknown}")
 
     if allowed_types is not None:
-        types = outreach_candidates["type"].astype(str).str.strip()
-        unknown_types = sorted(set(types.unique()) - set(allowed_types))
+        types = outreach_candidates["type"].astype("string").str.strip().dropna()
+        unknown_types = sorted(set(types.unique()) - set(map(str, allowed_types)))
         if unknown_types:
             errors.append(f"outreach_candidates: unknown type values not in config planning.outreach.allowed_candidate_types: {unknown_types}")
 
@@ -192,9 +195,11 @@ def validate_multi_city_consistency(
     errors: list[str] = []
     warnings: list[str] = []
 
-    libs_cities = set(libraries["city"].astype(str).unique()) if "city" in libraries.columns else set()
+    libs_cities = (
+        set(libraries["city"].astype("string").dropna().unique()) if "city" in libraries.columns else set()
+    )
     out_cities = (
-        set(outreach_candidates["city"].astype(str).unique()) if "city" in outreach_candidates.columns else set()
+        set(outreach_candidates["city"].astype("string").dropna().unique()) if "city" in outreach_candidates.columns else set()
     )
     union_cities = sorted(libs_cities | out_cities)
 
@@ -215,4 +220,3 @@ def validate_multi_city_consistency(
         else {},
     }
     return CatalogValidationResult(errors=errors, warnings=warnings, stats=stats)
-

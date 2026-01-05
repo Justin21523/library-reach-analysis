@@ -31,6 +31,7 @@ Phase 1 focuses on an explainable baseline: **transit stop density within 500m/1
 - `data/catalogs/libraries.csv` is a project-owned library branch catalog (replace the sample rows with your real catalog).
 - `data/catalogs/outreach_candidates.csv` lists candidate outreach sites (community centers, schools, etc.).
 - Catalog schema reference: `data/catalogs/README.md`
+  - If your catalogs use Chinese city names, map them under `aoi.city_aliases` in `config/default.yaml`.
 
 ## Validation
 

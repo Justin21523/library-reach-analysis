@@ -41,10 +41,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "validate-catalogs":
         from libraryreach.catalogs.validate import format_validation_summary, validate_catalogs
 
-        import pandas as pd
+        from libraryreach.catalogs.load import load_libraries_catalog, load_outreach_candidates_catalog
 
-        libraries = pd.read_csv(Path(settings["paths"]["catalogs_dir"]) / "libraries.csv")
-        outreach = pd.read_csv(Path(settings["paths"]["catalogs_dir"]) / "outreach_candidates.csv")
+        libraries = load_libraries_catalog(settings)
+        outreach = load_outreach_candidates_catalog(settings)
         report = validate_catalogs(settings, libraries=libraries, outreach_candidates=outreach, write_report=True)
         print(format_validation_summary(report))
         return
