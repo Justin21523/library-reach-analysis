@@ -20,6 +20,7 @@ def validate_catalogs(
     libraries: pd.DataFrame,
     outreach_candidates: pd.DataFrame,
     write_report: bool = True,
+    raise_on_error: bool = True,
 ) -> dict[str, Any]:
     allowed_cities = set(map(str, settings.get("aoi", {}).get("cities", []))) or None
     allowed_types = (
@@ -62,7 +63,7 @@ def validate_catalogs(
         )
         _write_markdown_report(reports_dir / "catalog_validation.md", report)
 
-    if errors:
+    if errors and raise_on_error:
         raise ValueError("Catalog validation failed. See reports/catalog_validation.md for details.")
 
     return report
@@ -105,4 +106,3 @@ def format_validation_summary(report: dict[str, Any]) -> str:
     if warnings:
         return f"OK with warnings: {len(warnings)} warnings"
     return "OK"
-

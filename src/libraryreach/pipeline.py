@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -32,10 +33,17 @@ def _stops_path(settings: dict[str, Any]) -> Path:
     return Path(settings["paths"]["raw_dir"]) / "tdx" / "stops.csv"
 
 
-def run_phase1(settings: dict[str, Any]) -> None:
-    processed_dir = Path(settings["paths"]["processed_dir"])
-    processed_dir.mkdir(parents=True, exist_ok=True)
+@dataclass(frozen=True)
+class Phase1Outputs:
+    libraries_with_metrics: pd.DataFrame
+    libraries_scored: pd.DataFrame
+    explain_by_id: dict[str, Any]
+    deserts: pd.DataFrame
+    outreach_recommendations: pd.DataFrame
+    reference_lat_deg: float
 
+
+def compute_phase1(settings: dict[str, Any]) -> Phase1Outputs:
     libraries = load_libraries_catalog(settings)
     outreach_candidates = load_outreach_candidates_catalog(settings)
 
@@ -59,17 +67,11 @@ def run_phase1(settings: dict[str, Any]) -> None:
         reference_lat_strategy=str(ref_lat_strategy),
     )
     libraries_with_metrics = libraries.merge(lib_metrics, on="id", how="left")
-    libraries_with_metrics.to_csv(processed_dir / "library_metrics.csv", index=False)
 
     scoring_config = build_scoring_config(settings)
     libraries_scored, explain_by_id = compute_accessibility_scores(
         libraries_with_metrics,
         config=scoring_config,
-    )
-    libraries_scored.to_csv(processed_dir / "libraries_scored.csv", index=False)
-    (processed_dir / "libraries_explain.json").write_text(
-        json.dumps(explain_by_id, ensure_ascii=False, indent=2),
-        encoding="utf-8",
     )
 
     cities = list(settings.get("aoi", {}).get("cities", [])) or sorted(libraries_scored["city"].astype(str).unique())
@@ -81,7 +83,9 @@ def run_phase1(settings: dict[str, Any]) -> None:
         library_search_radius_m=int(deserts_cfg["library_search_radius_m"]),
         threshold_score=float(deserts_cfg["threshold_score"]),
         decay_type=str(deserts_cfg.get("distance_decay", {}).get("type", "linear")),
-        decay_zero_at_m=int(deserts_cfg.get("distance_decay", {}).get("zero_at_m", deserts_cfg["library_search_radius_m"])),
+        decay_zero_at_m=int(
+            deserts_cfg.get("distance_decay", {}).get("zero_at_m", deserts_cfg["library_search_radius_m"])
+        ),
     )
     deserts = compute_access_deserts_grid(
         cities=cities,
@@ -89,11 +93,6 @@ def run_phase1(settings: dict[str, Any]) -> None:
         outreach_candidates=outreach_candidates,
         reference_lat_deg=float(reference_lat_deg),
         config=desert_config,
-    )
-    deserts.to_csv(processed_dir / "deserts.csv", index=False)
-    (processed_dir / "deserts.geojson").write_text(
-        json.dumps(deserts_points_geojson(deserts), ensure_ascii=False),
-        encoding="utf-8",
     )
 
     outreach_cfg = settings["planning"]["outreach"]
@@ -103,8 +102,17 @@ def run_phase1(settings: dict[str, Any]) -> None:
         weight_coverage=float(outreach_cfg["weight_coverage"]),
         weight_site_access=float(outreach_cfg["weight_site_access"]),
     )
+
+    allowed_types = set(map(str, outreach_cfg.get("allowed_candidate_types", [])))
+    if allowed_types and "type" in outreach_candidates.columns:
+        outreach_for_planning = outreach_candidates[
+            outreach_candidates["type"].astype("string").str.strip().isin(allowed_types)
+        ].copy()
+    else:
+        outreach_for_planning = outreach_candidates
+
     recommendations = recommend_outreach_sites(
-        outreach_candidates=outreach_candidates,
+        outreach_candidates=outreach_for_planning,
         deserts=deserts,
         stops=stops,
         reference_lat_deg=float(reference_lat_deg),
@@ -112,4 +120,35 @@ def run_phase1(settings: dict[str, Any]) -> None:
         scoring_config=scoring_config,
         config=outreach_config,
     )
-    recommendations.to_csv(processed_dir / "outreach_recommendations.csv", index=False)
+
+    return Phase1Outputs(
+        libraries_with_metrics=libraries_with_metrics,
+        libraries_scored=libraries_scored,
+        explain_by_id=explain_by_id,
+        deserts=deserts,
+        outreach_recommendations=recommendations,
+        reference_lat_deg=float(reference_lat_deg),
+    )
+
+
+def run_phase1(settings: dict[str, Any]) -> None:
+    processed_dir = Path(settings["paths"]["processed_dir"])
+    processed_dir.mkdir(parents=True, exist_ok=True)
+
+    outputs = compute_phase1(settings)
+
+    outputs.libraries_with_metrics.to_csv(processed_dir / "library_metrics.csv", index=False)
+
+    outputs.libraries_scored.to_csv(processed_dir / "libraries_scored.csv", index=False)
+    (processed_dir / "libraries_explain.json").write_text(
+        json.dumps(outputs.explain_by_id, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    outputs.deserts.to_csv(processed_dir / "deserts.csv", index=False)
+    (processed_dir / "deserts.geojson").write_text(
+        json.dumps(deserts_points_geojson(outputs.deserts), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    outputs.outreach_recommendations.to_csv(processed_dir / "outreach_recommendations.csv", index=False)

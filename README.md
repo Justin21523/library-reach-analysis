@@ -20,6 +20,8 @@ Phase 1 focuses on an explainable baseline: **transit stop density within 500m/1
 4) Start the API + minimal web UI:
 - `uvicorn libraryreach.api.main:app --reload`
 - Open `http://127.0.0.1:8000/`
+  - The web UI includes a control console for what-if parameter tuning and keyboard shortcuts (press `?`).
+  - The map uses MapLibre + OSM raster tiles (internet required in the browser).
 
 ## Configuration
 

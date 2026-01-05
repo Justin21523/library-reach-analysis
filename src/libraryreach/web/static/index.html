@@ -3,34 +3,190 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LibraryReach (MVP)</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>LibraryReach Control Console</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
+    />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <div id="layout">
-      <div id="sidebar">
-        <div class="section">
-          <h1>LibraryReach</h1>
-          <p class="muted">Baseline: transit stop density within 500m/1km buffers.</p>
-          <div id="status" class="muted"></div>
+      <aside id="sidebar">
+        <div class="header">
+          <div class="title">LibraryReach</div>
+          <div class="subtitle">Control Console (baseline + what-if)</div>
+          <div id="status" class="status">Loading…</div>
         </div>
 
-        <div class="section">
-          <h2>Library Details</h2>
-          <div id="library-details" class="muted">Click a library marker.</div>
+        <div class="foldout" data-foldout="controls">
+          <button class="foldout-header" type="button">Controls</button>
+          <div class="foldout-body">
+            <div class="row">
+              <label class="field">
+                <span>Scenario</span>
+                <select id="scenario"></select>
+              </label>
+              <button id="apply" class="btn primary" type="button" title="Ctrl+Enter">Apply</button>
+              <button id="reset" class="btn" type="button">Reset</button>
+            </div>
+            <div class="row">
+              <button id="validate" class="btn" type="button">Validate Catalogs</button>
+              <button id="help" class="btn" type="button" title="?">Shortcuts</button>
+            </div>
+
+            <div class="subheader">Cities</div>
+            <div id="cities" class="checkbox-grid"></div>
+
+            <div class="subheader">Layers</div>
+            <div class="checkbox-grid">
+              <label class="check"><input id="layerLibraries" type="checkbox" checked />Libraries (L)</label>
+              <label class="check"><input id="layerDeserts" type="checkbox" checked />Deserts (D)</label>
+              <label class="check"><input id="layerOutreach" type="checkbox" checked />Outreach (O)</label>
+            </div>
+          </div>
         </div>
 
-        <div class="section">
-          <h2>Outreach Recommendations</h2>
-          <div id="outreach-list" class="muted">Loading…</div>
+        <div class="foldout" data-foldout="scoring">
+          <button class="foldout-header" type="button">Scoring</button>
+          <div class="foldout-body">
+            <div class="subheader">Mode Weights</div>
+            <div class="row">
+              <label class="field">
+                <span>Bus</span>
+                <input id="wBus" type="number" min="0" max="1" step="0.05" />
+              </label>
+              <label class="field">
+                <span>Metro</span>
+                <input id="wMetro" type="number" min="0" max="1" step="0.05" />
+              </label>
+            </div>
+
+            <div class="subheader">Radius Weights</div>
+            <div class="row">
+              <label class="field">
+                <span>500m</span>
+                <input id="w500" type="number" min="0" max="1" step="0.05" />
+              </label>
+              <label class="field">
+                <span>1000m</span>
+                <input id="w1000" type="number" min="0" max="1" step="0.05" />
+              </label>
+            </div>
+
+            <div class="subheader">Density Targets (per km²)</div>
+            <div class="grid2">
+              <label class="field">
+                <span>Bus @500</span>
+                <input id="tBus500" type="number" min="0" step="1" />
+              </label>
+              <label class="field">
+                <span>Bus @1000</span>
+                <input id="tBus1000" type="number" min="0" step="1" />
+              </label>
+              <label class="field">
+                <span>Metro @500</span>
+                <input id="tMetro500" type="number" min="0" step="0.5" />
+              </label>
+              <label class="field">
+                <span>Metro @1000</span>
+                <input id="tMetro1000" type="number" min="0" step="0.5" />
+              </label>
+            </div>
+            <div class="hint">Tip: keep weights normalized; the UI auto-fixes minor drift.</div>
+          </div>
         </div>
-      </div>
-      <div id="map"></div>
+
+        <div class="foldout" data-foldout="planning">
+          <button class="foldout-header" type="button">Planning</button>
+          <div class="foldout-body">
+            <div class="subheader">Deserts</div>
+            <div class="row">
+              <label class="field">
+                <span>Threshold (0–100)</span>
+                <input id="desertThreshold" type="number" min="0" max="100" step="1" />
+              </label>
+              <label class="field">
+                <span>Grid (m)</span>
+                <input id="gridSize" type="number" min="250" step="250" />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">
+                <span>Search Radius (m)</span>
+                <input id="desertSearchRadius" type="number" min="500" step="250" />
+              </label>
+            </div>
+
+            <div class="subheader">Outreach</div>
+            <div class="row">
+              <label class="field">
+                <span>Coverage Radius (m)</span>
+                <input id="outreachRadius" type="number" min="250" step="250" />
+              </label>
+              <label class="field">
+                <span>Top N / City</span>
+                <input id="outreachTopN" type="number" min="1" step="1" />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">
+                <span>Coverage Weight</span>
+                <input id="wCoverage" type="number" min="0" max="1" step="0.05" />
+              </label>
+              <label class="field">
+                <span>Site Access Weight</span>
+                <input id="wSite" type="number" min="0" max="1" step="0.05" />
+              </label>
+            </div>
+
+            <div class="subheader">Candidate Types</div>
+            <div id="candidateTypes" class="checkbox-grid"></div>
+          </div>
+        </div>
+
+        <div class="foldout" data-foldout="inspector">
+          <button class="foldout-header" type="button">Inspector</button>
+          <div class="foldout-body">
+            <div id="inspector" class="muted">Click a library marker.</div>
+          </div>
+        </div>
+
+        <div class="foldout" data-foldout="outreach">
+          <button class="foldout-header" type="button">Outreach List</button>
+          <div class="foldout-body">
+            <div id="outreachList" class="muted">Loading…</div>
+          </div>
+        </div>
+      </aside>
+      <main id="map"></main>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true">
+      <div class="overlay-card">
+        <div class="overlay-title">Keyboard Shortcuts</div>
+        <div class="overlay-body">
+          <div class="shortcut-grid">
+            <div class="k">W/A/S/D</div><div class="v">Pan</div>
+            <div class="k">Q/E</div><div class="v">Rotate</div>
+            <div class="k">R/F</div><div class="v">Zoom in/out</div>
+            <div class="k">Z/X</div><div class="v">Pitch up/down</div>
+            <div class="k">0</div><div class="v">Reset bearing/pitch</div>
+            <div class="k">L/D/O</div><div class="v">Toggle layers</div>
+            <div class="k">Ctrl+Enter</div><div class="v">Apply parameters</div>
+            <div class="k">Ctrl+S</div><div class="v">Save preset (local)</div>
+            <div class="k">?</div><div class="v">Toggle this panel</div>
+            <div class="k">Esc</div><div class="v">Close panel</div>
+          </div>
+          <div class="hint">Tip: hold Shift to speed up camera, hold Alt to slow down.</div>
+        </div>
+        <div class="overlay-footer">
+          <button id="closeOverlay" class="btn primary" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>
-
