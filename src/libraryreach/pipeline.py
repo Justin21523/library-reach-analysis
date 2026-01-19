@@ -9,8 +9,10 @@ import pandas as pd
 
 from libraryreach.catalogs.load import load_libraries_catalog, load_outreach_candidates_catalog
 from libraryreach.catalogs.validate import validate_catalogs
+from libraryreach.data.outputs_schema import SCHEMA_VERSION, validate_phase1_outputs
 from libraryreach.planning.deserts import DesertConfig, compute_access_deserts_grid, deserts_points_geojson
 from libraryreach.planning.outreach import OutreachConfig, recommend_outreach_sites
+from libraryreach.run_meta import build_run_meta, file_meta, new_run_id, utc_now_iso, write_json
 from libraryreach.scoring.accessibility import build_scoring_config, compute_accessibility_scores
 from libraryreach.spatial.joins import compute_point_stop_density
 
@@ -135,6 +137,18 @@ def run_phase1(settings: dict[str, Any]) -> None:
     processed_dir = Path(settings["paths"]["processed_dir"])
     processed_dir.mkdir(parents=True, exist_ok=True)
 
+    run_id = new_run_id()
+    generated_at = utc_now_iso()
+
+    # Capture previous summary (if any) before overwriting cached artifacts.
+    previous_summary_metrics: dict[str, Any] | None = None
+    prev_path = processed_dir / "summary_baseline.json"
+    if prev_path.exists():
+        try:
+            previous_summary_metrics = json.loads(prev_path.read_text(encoding="utf-8")).get("summary", {}).get("metrics", {})
+        except Exception:
+            previous_summary_metrics = None
+
     outputs = compute_phase1(settings)
 
     outputs.libraries_with_metrics.to_csv(processed_dir / "library_metrics.csv", index=False)
@@ -152,3 +166,164 @@ def run_phase1(settings: dict[str, Any]) -> None:
     )
 
     outputs.outreach_recommendations.to_csv(processed_dir / "outreach_recommendations.csv", index=False)
+
+    # Validate output schema and write a structured report for traceability.
+    schema_report = validate_phase1_outputs(
+        libraries_scored=outputs.libraries_scored,
+        deserts=outputs.deserts,
+        outreach_recommendations=outputs.outreach_recommendations,
+    )
+    write_json(processed_dir / "outputs_schema_report.json", schema_report)
+    if not schema_report.get("ok", False):
+        raise ValueError("Phase 1 outputs failed schema validation. See data/processed/outputs_schema_report.json")
+
+    # Write run metadata for reproducibility and UI traceability.
+    meta = settings.get("_meta", {}) or {}
+    cities = list(settings.get("aoi", {}).get("cities", [])) or sorted(outputs.libraries_scored["city"].astype(str).unique())
+    input_sources = [
+        file_meta(Path(settings["paths"]["raw_dir"]) / "tdx" / "stops.csv"),
+        file_meta(Path(settings["paths"]["raw_dir"]) / "sources_index.json"),
+        file_meta(Path(settings["paths"]["catalogs_dir"]) / "libraries.csv"),
+        file_meta(Path(settings["paths"]["catalogs_dir"]) / "outreach_candidates.csv"),
+        file_meta(Path(str(meta.get("config_path"))) if meta.get("config_path") else Path("config/default.yaml")),
+        file_meta(Path(str(meta.get("scenario_path"))) if meta.get("scenario_path") else Path("config/scenarios/weekday.yaml")),
+    ]
+    output_files = [
+        file_meta(processed_dir / "libraries_scored.csv"),
+        file_meta(processed_dir / "libraries_explain.json"),
+        file_meta(processed_dir / "deserts.csv"),
+        file_meta(processed_dir / "deserts.geojson"),
+        file_meta(processed_dir / "outreach_recommendations.csv"),
+        file_meta(processed_dir / "outputs_schema_report.json"),
+    ]
+    run_meta = build_run_meta(
+        run_id=run_id,
+        generated_at=generated_at,
+        settings=settings,
+        cities=[str(c) for c in cities],
+        input_sources=input_sources,
+        outputs=output_files,
+        schema_versions={"phase1_outputs": SCHEMA_VERSION},
+    )
+    write_json(processed_dir / "run_meta.json", run_meta)
+
+    # Write cached summary artifacts for fast API responses.
+    from libraryreach.api.summary import summarize
+
+    summary_all = summarize(
+        libraries=outputs.libraries_scored,
+        deserts=outputs.deserts,
+        outreach=outputs.outreach_recommendations,
+        cities=[str(c) for c in cities],
+        top_n_outreach=50,
+    )
+    write_json(processed_dir / "summary_baseline.json", {"run_meta": run_meta, "summary": summary_all})
+
+    summaries_by_city: dict[str, Any] = {}
+    for city in [str(c) for c in cities]:
+        summaries_by_city[city] = summarize(
+            libraries=outputs.libraries_scored,
+            deserts=outputs.deserts,
+            outreach=outputs.outreach_recommendations,
+            cities=[city],
+            top_n_outreach=50,
+        )
+    write_json(processed_dir / "summary_by_city.json", {"run_meta": run_meta, "summaries_by_city": summaries_by_city})
+
+    # QA report: lightweight quality checks for traceability and dashboards.
+    qa = _build_qa_report(
+        outputs=outputs,
+        settings=settings,
+        run_meta=run_meta,
+        previous_summary_metrics=previous_summary_metrics,
+    )
+    write_json(processed_dir / "qa_report.json", qa)
+    _write_qa_markdown(processed_dir / "qa_report.md", qa)
+
+
+def _build_qa_report(
+    *,
+    outputs: Phase1Outputs,
+    settings: dict[str, Any],
+    run_meta: dict[str, Any],
+    previous_summary_metrics: dict[str, Any] | None,
+) -> dict[str, Any]:
+    libs = outputs.libraries_scored.copy()
+    deserts = outputs.deserts.copy()
+    outreach = outputs.outreach_recommendations.copy()
+
+    def num(df: pd.DataFrame, col: str) -> pd.Series:
+        return pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(dtype=float)
+
+    lib_score = num(libs, "accessibility_score")
+    missing_lib_coords = int(num(libs, "lat").isna().sum() + num(libs, "lon").isna().sum())
+    deserts_count = int((deserts["is_desert"] == True).sum()) if "is_desert" in deserts.columns else 0  # noqa: E712
+    outreach_score = num(outreach, "outreach_score")
+
+    cur = {
+        "libraries_count": int(len(libs)),
+        "avg_accessibility_score": float(lib_score.mean()) if not lib_score.empty else None,
+        "deserts_count": deserts_count,
+        "outreach_count": int(len(outreach)),
+    }
+
+    deltas = None
+    if previous_summary_metrics:
+        deltas = {
+            "avg_accessibility_score": (cur["avg_accessibility_score"] or 0)
+            - float(previous_summary_metrics.get("avg_accessibility_score") or 0),
+            "deserts_count": int(cur["deserts_count"] or 0) - int(previous_summary_metrics.get("deserts_count") or 0),
+            "outreach_count": int(cur["outreach_count"] or 0)
+            - int(previous_summary_metrics.get("outreach_count") or 0),
+        }
+
+    return {
+        "run_meta": run_meta,
+        "generated_at": run_meta.get("generated_at"),
+        "scenario": (settings.get("_meta", {}) or {}).get("scenario"),
+        "kpis": cur,
+        "deltas_vs_previous": deltas,
+        "checks": {
+            "libraries_missing_coords": missing_lib_coords,
+            "libraries_score_min": float(lib_score.min()) if not lib_score.empty else None,
+            "libraries_score_max": float(lib_score.max()) if not lib_score.empty else None,
+            "deserts_rows": int(len(deserts)),
+            "outreach_score_min": float(outreach_score.min()) if not outreach_score.empty else None,
+            "outreach_score_max": float(outreach_score.max()) if not outreach_score.empty else None,
+        },
+        "notes": [
+            "This report is designed for dashboards/briefs. For catalog checks see reports/catalog_validation.md.",
+        ],
+    }
+
+
+def _write_qa_markdown(path: Path, report: dict[str, Any]) -> None:
+    lines: list[str] = []
+    lines.append("# QA report (Phase 1)")
+    lines.append("")
+    rm = report.get("run_meta", {}) or {}
+    lines.append(f"- Run ID: {rm.get('run_id', '-')}")
+    lines.append(f"- Generated: {rm.get('generated_at', '-')}")
+    lines.append(f"- Scenario: {report.get('scenario', '-')}")
+    lines.append("")
+    lines.append("## KPIs")
+    lines.append("```json")
+    lines.append(json.dumps(report.get("kpis", {}), ensure_ascii=False, indent=2))
+    lines.append("```")
+    lines.append("")
+    if report.get("deltas_vs_previous") is not None:
+        lines.append("## Deltas vs previous")
+        lines.append("```json")
+        lines.append(json.dumps(report.get("deltas_vs_previous", {}), ensure_ascii=False, indent=2))
+        lines.append("```")
+        lines.append("")
+    lines.append("## Checks")
+    lines.append("```json")
+    lines.append(json.dumps(report.get("checks", {}), ensure_ascii=False, indent=2))
+    lines.append("```")
+    lines.append("")
+    lines.append("## Notes")
+    for n in report.get("notes", []):
+        lines.append(f"- {n}")
+    lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 from functools import lru_cache
@@ -8,11 +9,15 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from libraryreach.api.schemas import DesertCell, LibraryDetail, LibrarySummary, OutreachRecommendation
+from libraryreach.api.patch_validation import validate_config_patch
+from libraryreach.api.summary import parse_bbox, summarize, summarize_delta, utc_now_iso
+from libraryreach.api.summary_cache import aggregate_summaries, load_qa_report, load_run_meta, load_summary_by_city
 from libraryreach.catalogs.load import load_libraries_catalog, load_outreach_candidates_catalog
 from libraryreach.catalogs.validate import validate_catalogs
 from libraryreach.pipeline import compute_phase1
@@ -24,11 +29,30 @@ def _processed_dir() -> Path:
     return Path(os.getenv("LIBRARYREACH_PROCESSED_DIR", "data/processed")).resolve()
 
 
+def _raw_dir(settings: dict[str, Any]) -> Path:
+    return Path((settings.get("paths", {}) or {}).get("raw_dir") or "data/raw").resolve()
+
+
+def _load_optional_json(path: Path) -> dict[str, Any] | None:
+    p = Path(path)
+    if not p.exists():
+        return None
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
 def _safe_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return df.where(pd.notnull(df), None).to_dict(orient="records")
 
 
+def _etag(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
 app = FastAPI(title="LibraryReach API", version="0.1.0")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "web" / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -89,19 +113,52 @@ def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/console")
+def console() -> FileResponse:
+    return FileResponse(STATIC_DIR / "console.html")
+
+
+@app.get("/brief")
+def brief() -> FileResponse:
+    return FileResponse(STATIC_DIR / "brief.html")
+
+
+@app.get("/results")
+def results() -> FileResponse:
+    return FileResponse(STATIC_DIR / "results.html")
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
+    settings = _settings_for_scenario(DEFAULT_SCENARIO)
     p = _processed_dir()
+    run_meta = load_run_meta(p)
+    qa = load_qa_report(p)
+    raw_dir = _raw_dir(settings)
+    ingestion_status = _load_optional_json(raw_dir / "tdx" / "ingestion_status.json")
+    stops_meta = _load_optional_json(raw_dir / "tdx" / "stops.meta.json")
     return {
         "ok": True,
+        "generated_at": utc_now_iso(),
         "processed_dir": str(p),
+        "config_path": str(CONFIG_PATH),
+        "run_meta": run_meta,
+        "qa": qa,
+        "ingestion_status": ingestion_status,
+        "stops_meta": stops_meta,
         "files": {
             "libraries_scored": (p / "libraries_scored.csv").exists(),
             "libraries_explain": (p / "libraries_explain.json").exists(),
             "deserts_csv": (p / "deserts.csv").exists(),
             "deserts_geojson": (p / "deserts.geojson").exists(),
             "outreach_recommendations": (p / "outreach_recommendations.csv").exists(),
-            "tdx_stops": (Path("data/raw/tdx/stops.csv").resolve()).exists(),
+            "tdx_stops": (raw_dir / "tdx" / "stops.csv").exists(),
+        },
+        "mtimes": {
+            "libraries_scored": (p / "libraries_scored.csv").stat().st_mtime if (p / "libraries_scored.csv").exists() else None,
+            "deserts_csv": (p / "deserts.csv").stat().st_mtime if (p / "deserts.csv").exists() else None,
+            "deserts_geojson": (p / "deserts.geojson").stat().st_mtime if (p / "deserts.geojson").exists() else None,
+            "outreach_recommendations": (p / "outreach_recommendations.csv").stat().st_mtime if (p / "outreach_recommendations.csv").exists() else None,
         },
     }
 
@@ -111,6 +168,25 @@ def control_config(scenario: str | None = None) -> dict[str, Any]:
     s = scenario or DEFAULT_SCENARIO
     settings = _settings_for_scenario(s)
     return _subset_settings(settings)
+
+
+@app.get("/meta")
+def meta() -> dict[str, Any]:
+    settings = _settings_for_scenario(DEFAULT_SCENARIO)
+    p = _processed_dir()
+    raw_dir = _raw_dir(settings)
+    return {
+        "generated_at": utc_now_iso(),
+        "scenarios": ["weekday", "weekend", "after_school"],
+        "default_scenario": DEFAULT_SCENARIO,
+        "cities": [str(c) for c in (settings.get("aoi", {}) or {}).get("cities", [])],
+        "processed_dir": str(p),
+        "config_path": str(CONFIG_PATH),
+        "run_meta": load_run_meta(p),
+        "qa": load_qa_report(p),
+        "ingestion_status": _load_optional_json(raw_dir / "tdx" / "ingestion_status.json"),
+        "stops_meta": _load_optional_json(raw_dir / "tdx" / "stops.meta.json"),
+    }
 
 
 @app.post("/control/catalogs/validate")
@@ -127,6 +203,41 @@ def control_validate_catalogs(scenario: str | None = None) -> dict[str, Any]:
     )
 
 
+@app.get("/reports/latest")
+def reports_latest() -> dict[str, Any]:
+    settings = _settings_for_scenario(DEFAULT_SCENARIO)
+    p = _processed_dir()
+    reports: dict[str, Any] = {"generated_at": utc_now_iso(), "processed_dir": str(p), "run_meta": load_run_meta(p)}
+    raw_dir = _raw_dir(settings)
+    ingestion_status = _load_optional_json(raw_dir / "tdx" / "ingestion_status.json")
+    if ingestion_status is not None:
+        reports["ingestion_status"] = ingestion_status
+    stops_meta = _load_optional_json(raw_dir / "tdx" / "stops.meta.json")
+    if stops_meta is not None:
+        reports["stops_meta"] = stops_meta
+
+    qa_json = p / "qa_report.json"
+    qa_md = p / "qa_report.md"
+    schema_json = p / "outputs_schema_report.json"
+    if qa_json.exists():
+        reports["qa_report"] = json.loads(qa_json.read_text(encoding="utf-8"))
+    if qa_md.exists():
+        reports["qa_report_md"] = qa_md.read_text(encoding="utf-8")
+    if schema_json.exists():
+        reports["outputs_schema_report"] = json.loads(schema_json.read_text(encoding="utf-8"))
+
+    # Catalog validation lives under reports/ (project reports dir) rather than processed outputs.
+    reports_dir = Path(_settings_for_scenario(DEFAULT_SCENARIO)["paths"]["reports_dir"])
+    cat_json = reports_dir / "catalog_validation.json"
+    cat_md = reports_dir / "catalog_validation.md"
+    if cat_json.exists():
+        reports["catalog_validation"] = json.loads(cat_json.read_text(encoding="utf-8"))
+    if cat_md.exists():
+        reports["catalog_validation_md"] = cat_md.read_text(encoding="utf-8")
+
+    return reports
+
+
 @app.post("/analysis/whatif")
 def analysis_whatif(payload: dict[str, Any]) -> dict[str, Any]:
     scenario = str(payload.get("scenario") or DEFAULT_SCENARIO)
@@ -138,16 +249,15 @@ def analysis_whatif(payload: dict[str, Any]) -> dict[str, Any]:
     if cities is not None and not isinstance(cities, list):
         raise HTTPException(status_code=400, detail="cities must be a list")
 
+    patch_errors = validate_config_patch(config_patch or {})
+    if patch_errors:
+        raise HTTPException(status_code=400, detail={"errors": patch_errors})
+
     base_settings = _settings_for_scenario(scenario)
     settings = copy.deepcopy(base_settings)
 
     if cities is not None:
         settings.setdefault("aoi", {})["cities"] = [str(c) for c in cities]
-
-    allowed_top = {"aoi", "buffers", "spatial", "scoring", "planning"}
-    unsafe_keys = sorted(set(config_patch.keys()) - allowed_top)
-    if unsafe_keys:
-        raise HTTPException(status_code=400, detail=f"Unsupported config_patch keys: {unsafe_keys}")
 
     settings = _deep_merge(settings, config_patch)
 
@@ -177,11 +287,249 @@ def analysis_whatif(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "scenario": scenario,
         "config": _subset_settings(settings),
+        "run_meta": load_run_meta(_processed_dir()),
         "libraries": _safe_records(libs_out),
         "libraries_geojson": _df_to_point_geojson(libs_out, lat_col="lat", lon_col="lon"),
         "deserts_geojson": deserts_points_geojson(deserts_out),
         "outreach": _safe_records(recs_out),
         "outreach_geojson": _df_to_point_geojson(recs_out, lat_col="lat", lon_col="lon") if not recs_out.empty else {"type": "FeatureCollection", "features": []},
+    }
+
+
+@app.get("/analysis/baseline-summary")
+def analysis_baseline_summary(
+    response: Response,
+    scenario: str | None = None,
+    cities: list[str] | None = Query(default=None),
+    top_n_outreach: int = 10,
+) -> dict[str, Any]:
+    s = scenario or DEFAULT_SCENARIO
+    settings = _settings_for_scenario(s)
+    default_cities = [str(c) for c in (settings.get("aoi", {}) or {}).get("cities", [])]
+    selected_cities = [str(c) for c in cities] if cities else default_cities
+
+    p = _processed_dir()
+    run_meta = load_run_meta(p)
+    etag_val = _etag(
+        json.dumps(
+            {
+                "run_id": (run_meta or {}).get("run_id"),
+                "config_hash": (run_meta or {}).get("config_hash"),
+                "scenario": s,
+                "cities": selected_cities,
+                "top_n_outreach": int(top_n_outreach),
+            },
+            sort_keys=True,
+        )
+    )
+    response.headers["ETag"] = etag_val
+
+    cache = load_summary_by_city(p)
+    summary = None
+    if cache and isinstance(cache.get("summaries_by_city"), dict):
+        summary = aggregate_summaries(
+            summaries_by_city=cache["summaries_by_city"],
+            cities=selected_cities,
+            top_n_outreach=int(top_n_outreach),
+        )
+    else:
+        libs_path = p / "libraries_scored.csv"
+        deserts_path = p / "deserts.csv"
+        outreach_path = p / "outreach_recommendations.csv"
+        if not libs_path.exists() or not deserts_path.exists() or not outreach_path.exists():
+            raise HTTPException(status_code=404, detail="Missing pipeline output(s). Run pipeline first.")
+        libs = pd.read_csv(libs_path)
+        deserts = pd.read_csv(deserts_path)
+        outreach = pd.read_csv(outreach_path)
+        summary = summarize(
+            libraries=libs,
+            deserts=deserts,
+            outreach=outreach,
+            cities=selected_cities,
+            top_n_outreach=int(top_n_outreach),
+        )
+
+    return {
+        "generated_at": utc_now_iso(),
+        "scenario": s,
+        "cities": selected_cities,
+        "source": {"type": "processed_outputs", "processed_dir": str(p)},
+        "run_meta": run_meta,
+        "summary": summary,
+        "config": _subset_settings(settings),
+    }
+
+
+@app.post("/analysis/compare")
+def analysis_compare(payload: dict[str, Any]) -> dict[str, Any]:
+    scenario = str(payload.get("scenario") or DEFAULT_SCENARIO)
+    config_patch = payload.get("config_patch") or {}
+    cities = payload.get("cities")
+
+    if config_patch is not None and not isinstance(config_patch, dict):
+        raise HTTPException(status_code=400, detail="config_patch must be an object")
+    if cities is not None and not isinstance(cities, list):
+        raise HTTPException(status_code=400, detail="cities must be a list")
+
+    patch_errors = validate_config_patch(config_patch or {})
+    if patch_errors:
+        raise HTTPException(status_code=400, detail={"errors": patch_errors})
+
+    base_settings = _settings_for_scenario(scenario)
+    selected_cities = (
+        [str(c) for c in cities]
+        if cities
+        else [str(c) for c in (base_settings.get("aoi", {}) or {}).get("cities", [])]
+    )
+
+    # Baseline from processed outputs
+    p = _processed_dir()
+    libs_path = p / "libraries_scored.csv"
+    deserts_path = p / "deserts.csv"
+    outreach_path = p / "outreach_recommendations.csv"
+    if not libs_path.exists() or not deserts_path.exists() or not outreach_path.exists():
+        raise HTTPException(status_code=404, detail="Missing pipeline output(s). Run pipeline first.")
+    libs_base = pd.read_csv(libs_path)
+    deserts_base = pd.read_csv(deserts_path)
+    outreach_base = pd.read_csv(outreach_path)
+    baseline = summarize(
+        libraries=libs_base,
+        deserts=deserts_base,
+        outreach=outreach_base,
+        cities=selected_cities,
+        top_n_outreach=10,
+    )
+
+    # What-if via compute_phase1
+    settings = copy.deepcopy(base_settings)
+    if cities is not None:
+        settings.setdefault("aoi", {})["cities"] = selected_cities
+    settings = _deep_merge(settings, config_patch)
+
+    try:
+        outputs = compute_phase1(settings)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Missing required input file: {e.filename}")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    libs_cols = [
+        "id",
+        "name",
+        "address",
+        "lat",
+        "lon",
+        "city",
+        "district",
+        "accessibility_score",
+        "accessibility_explain",
+    ]
+    libs_out = outputs.libraries_scored[[c for c in libs_cols if c in outputs.libraries_scored.columns]].copy()
+    deserts_out = outputs.deserts.copy()
+    recs_out = outputs.outreach_recommendations.copy()
+
+    whatif = summarize(
+        libraries=libs_out,
+        deserts=deserts_out,
+        outreach=recs_out,
+        cities=selected_cities,
+        top_n_outreach=10,
+    )
+    delta = summarize_delta(baseline, whatif)
+
+    def _fmt_num(v: float | None) -> str:
+        return f"{float(v):.1f}" if isinstance(v, (int, float)) and v is not None else "—"
+
+    def _fmt_delta(v: float | None) -> str:
+        if not isinstance(v, (int, float)) or v is None:
+            return "—"
+        return f"{float(v):+.1f}"
+
+    b = baseline["metrics"]
+    w = whatif["metrics"]
+    narrative = {
+        "headline": "情境比較摘要",
+        "bullets": [
+            f"平均可達性：{_fmt_num(w.get('avg_accessibility_score'))}（Δ {_fmt_delta(delta.get('avg_accessibility_score'))}）",
+            f"服務落差 deserts：{int(w.get('deserts_count') or 0)}（Δ {int(delta.get('deserts_count') or 0):+d}；越少越好）",
+            f"外展建議數量：{int(w.get('outreach_count') or 0)}（baseline {int(b.get('outreach_count') or 0)}）",
+        ],
+    }
+
+    # Structured narrative blocks (localizable, reusable in home/brief/results).
+    def _block(kind: str, *, title: str, body: str | None = None, items: list[str] | None = None) -> dict[str, Any]:
+        out: dict[str, Any] = {"type": kind, "title": title}
+        if body:
+            out["body"] = body
+        if items:
+            out["items"] = items
+        return out
+
+    assumption_hints: list[str] = []
+    try:
+        patch = config_patch or {}
+        th = patch.get("planning", {}).get("deserts", {}).get("threshold_score")
+        gs = patch.get("spatial", {}).get("grid", {}).get("cell_size_m")
+        rr = patch.get("planning", {}).get("outreach", {}).get("coverage_radius_m")
+        tn = patch.get("planning", {}).get("outreach", {}).get("top_n_per_city")
+        if th is not None:
+            assumption_hints.append(f"Desert threshold: {float(th):.0f}/100")
+        if gs is not None:
+            assumption_hints.append(f"Grid size: {int(gs)}m")
+        if rr is not None:
+            assumption_hints.append(f"Outreach radius: {int(rr)}m")
+        if tn is not None:
+            assumption_hints.append(f"Top N / city: {int(tn)}")
+    except Exception:
+        assumption_hints = []
+
+    narrative_blocks = [
+        _block(
+            "summary",
+            title="重點摘要",
+            items=narrative["bullets"],
+        ),
+        _block(
+            "assumptions",
+            title="本次假設",
+            body=" · ".join(
+                [f"Scenario: {scenario}", f"Cities: {', '.join(selected_cities) if selected_cities else '—'}"]
+                + (assumption_hints if assumption_hints else [])
+            ),
+        ),
+        _block(
+            "interpretation",
+            title="如何解讀",
+            items=[
+                "平均可達性上升代表整體更容易抵達館點，但仍需觀察低分區域是否集中。",
+                "deserts 變少表示服務落差縮小（越少越好），可搭配 deserts by city 來設定優先順序。",
+                "外展建議是候選點位排序；建議搭配現場條件與合作意願做最後篩選。",
+            ],
+        ),
+        _block(
+            "next_steps",
+            title="下一步建議",
+            items=[
+                "在成果頁檢視分數分佈與 deserts by city，找出最需要補強的城市/生活圈。",
+                "用控制台調整門檻、格網與外展半徑，觀察 delta 是否符合政策目標。",
+                "把本次假設分享為 URL，讓跨角色共讀同一組前提與結果。",
+            ],
+        ),
+    ]
+
+    return {
+        "generated_at": utc_now_iso(),
+        "scenario": scenario,
+        "cities": selected_cities,
+        "assumptions": {"scenario": scenario, "cities": selected_cities, "config_patch": config_patch},
+        "run_meta": load_run_meta(_processed_dir()),
+        "baseline": baseline,
+        "whatif": whatif,
+        "delta": delta,
+        "narrative": narrative,
+        "narrative_blocks": narrative_blocks,
+        "locale": "zh-Hant",
+        "config": _subset_settings(settings),
     }
 
 
@@ -230,18 +578,59 @@ def get_library(library_id: str) -> LibraryDetail:
 
 
 @app.get("/geo/libraries")
-def libraries_geojson() -> dict[str, Any]:
-    libs = list_libraries()
+def libraries_geojson(
+    cities: list[str] | None = Query(default=None),
+    bbox: str | None = None,
+    limit: int = 50000,
+) -> dict[str, Any]:
+    try:
+        df, _ = _load_libraries()
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Missing pipeline output: {e.filename}")
+
+    if cities and "city" in df.columns:
+        df = df[df["city"].astype(str).isin([str(c) for c in cities])].copy()
+
+    bb = None
+    if bbox:
+        try:
+            bb = parse_bbox(bbox)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if "lon" in df.columns and "lat" in df.columns:
+            df = df[
+                (df["lon"].astype(float) >= bb.min_lon)
+                & (df["lon"].astype(float) <= bb.max_lon)
+                & (df["lat"].astype(float) >= bb.min_lat)
+                & (df["lat"].astype(float) <= bb.max_lat)
+            ].copy()
+
+    if limit and len(df) > int(limit):
+        df = df.head(int(limit)).copy()
+
+    cols = ["id", "name", "address", "lat", "lon", "city", "district", "accessibility_score"]
+    df = df[[c for c in cols if c in df.columns]].copy()
     features = []
-    for lib in libs:
+    for row in _safe_records(df):
+        lat = row.get("lat")
+        lon = row.get("lon")
+        if lat is None or lon is None:
+            continue
+        props = dict(row)
+        props.pop("lat", None)
+        props.pop("lon", None)
         features.append(
             {
                 "type": "Feature",
-                "geometry": {"type": "Point", "coordinates": [lib.lon, lib.lat]},
-                "properties": lib.model_dump(exclude={"lat", "lon"}),
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": props,
             }
         )
-    return {"type": "FeatureCollection", "features": features}
+
+    out: dict[str, Any] = {"type": "FeatureCollection", "features": features}
+    if bb:
+        out["bbox"] = [bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat]
+    return out
 
 
 @app.get("/deserts", response_model=list[DesertCell])
@@ -267,18 +656,77 @@ def list_deserts() -> list[DesertCell]:
 
 
 @app.get("/geo/deserts")
-def deserts_geojson() -> dict[str, Any]:
+def deserts_geojson(
+    cities: list[str] | None = Query(default=None),
+    bbox: str | None = None,
+    limit: int = 50000,
+) -> dict[str, Any]:
     p = _processed_dir()
     geo_path = p / "deserts.geojson"
     if geo_path.exists():
-        return json.loads(geo_path.read_text(encoding="utf-8"))
+        data = json.loads(geo_path.read_text(encoding="utf-8"))
+        features = data.get("features", [])
+        if cities:
+            city_set = {str(c) for c in cities}
+            features = [f for f in features if str((f.get("properties") or {}).get("city")) in city_set]
+
+        bb = None
+        if bbox:
+            try:
+                bb = parse_bbox(bbox)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            filtered = []
+            for f in features:
+                coords = (f.get("geometry") or {}).get("coordinates")
+                if not (isinstance(coords, list) and len(coords) == 2):
+                    continue
+                lon, lat = float(coords[0]), float(coords[1])
+                if bb.min_lon <= lon <= bb.max_lon and bb.min_lat <= lat <= bb.max_lat:
+                    filtered.append(f)
+            features = filtered
+
+        if limit and len(features) > int(limit):
+            features = features[: int(limit)]
+
+        out: dict[str, Any] = {"type": "FeatureCollection", "features": features}
+        if bb:
+            out["bbox"] = [bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat]
+        return out
     # Fallback: build from deserts.csv
     deserts = pd.read_csv(p / "deserts.csv")
-    return deserts_points_geojson(deserts)
+    if cities and "city" in deserts.columns:
+        deserts = deserts[deserts["city"].astype(str).isin([str(c) for c in cities])].copy()
+
+    bb = None
+    if bbox:
+        try:
+            bb = parse_bbox(bbox)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if "centroid_lon" in deserts.columns and "centroid_lat" in deserts.columns:
+            deserts = deserts[
+                (deserts["centroid_lon"].astype(float) >= bb.min_lon)
+                & (deserts["centroid_lon"].astype(float) <= bb.max_lon)
+                & (deserts["centroid_lat"].astype(float) >= bb.min_lat)
+                & (deserts["centroid_lat"].astype(float) <= bb.max_lat)
+            ].copy()
+
+    if limit and len(deserts) > int(limit):
+        deserts = deserts.head(int(limit)).copy()
+
+    out = deserts_points_geojson(deserts)
+    if bb:
+        out["bbox"] = [bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat]
+    return out
 
 
 @app.get("/outreach/recommendations", response_model=list[OutreachRecommendation])
-def outreach_recommendations() -> list[OutreachRecommendation]:
+def outreach_recommendations(
+    scenario: str | None = None,
+    cities: list[str] | None = Query(default=None),
+    top_n: int = 1000,
+) -> list[OutreachRecommendation]:
     p = _processed_dir()
     path = p / "outreach_recommendations.csv"
     if not path.exists():
@@ -291,4 +739,9 @@ def outreach_recommendations() -> list[OutreachRecommendation]:
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise HTTPException(status_code=500, detail=f"Invalid outreach output schema: missing {missing}")
+    if cities:
+        df = df[df["city"].astype(str).isin([str(c) for c in cities])].copy()
+    df["outreach_score"] = pd.to_numeric(df["outreach_score"], errors="coerce")
+    df = df.sort_values("outreach_score", ascending=False)
+    df = df.head(int(top_n)).copy()
     return [OutreachRecommendation(**r) for r in _safe_records(df)]

@@ -97,16 +97,23 @@ def recommend_outreach_sites(
         else:
             g["coverage_score_0_100"] = (g["covered_gap_sum"] / max_gap) * 100.0
 
+        w_cov = float(config.weight_coverage)
+        w_site = float(config.weight_site_access)
+        g["weight_coverage"] = w_cov
+        g["weight_site_access"] = w_site
+        g["contribution_coverage"] = w_cov * g["coverage_score_0_100"]
+        g["contribution_site_access"] = w_site * g["site_access_score"]
+
         g["outreach_score"] = (
-            float(config.weight_coverage) * g["coverage_score_0_100"]
-            + float(config.weight_site_access) * g["site_access_score"]
+            g["contribution_coverage"] + g["contribution_site_access"]
         )
         g = g.sort_values("outreach_score", ascending=False).head(int(config.top_n_per_city))
         g["recommendation_explain"] = g.apply(
             lambda r: (
                 f"OutreachScore {float(r['outreach_score']):.1f}. "
                 f"Covers {int(r['covered_desert_cells'])} desert cells within {config.coverage_radius_m}m; "
-                f"site access score {float(r['site_access_score']):.1f}/100."
+                f"coverage {float(r['coverage_score_0_100']):.1f}/100 (w={w_cov:.2f}) + "
+                f"site access {float(r['site_access_score']):.1f}/100 (w={w_site:.2f})."
             ),
             axis=1,
         )

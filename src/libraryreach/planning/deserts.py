@@ -182,6 +182,19 @@ def compute_access_deserts_grid(
 def deserts_points_geojson(deserts: pd.DataFrame) -> dict[str, Any]:
     features: list[dict[str, Any]] = []
     for _, row in deserts.iterrows():
+        props: dict[str, Any] = {
+            "cell_id": str(row["cell_id"]),
+            "city": str(row["city"]),
+            "effective_score_0_100": float(row["effective_score_0_100"]),
+            "is_desert": bool(row["is_desert"]),
+            "gap_to_threshold": float(row["gap_to_threshold"]),
+            "best_library_id": row.get("best_library_id"),
+            "best_library_distance_m": row.get("best_library_distance_m"),
+        }
+        if "best_library_base_score" in deserts.columns:
+            props["best_library_base_score"] = row.get("best_library_base_score")
+        if "distance_decay_factor" in deserts.columns:
+            props["distance_decay_factor"] = row.get("distance_decay_factor")
         features.append(
             {
                 "type": "Feature",
@@ -189,16 +202,7 @@ def deserts_points_geojson(deserts: pd.DataFrame) -> dict[str, Any]:
                     "type": "Point",
                     "coordinates": [float(row["centroid_lon"]), float(row["centroid_lat"])],
                 },
-                "properties": {
-                    "cell_id": str(row["cell_id"]),
-                    "city": str(row["city"]),
-                    "effective_score_0_100": float(row["effective_score_0_100"]),
-                    "is_desert": bool(row["is_desert"]),
-                    "gap_to_threshold": float(row["gap_to_threshold"]),
-                    "best_library_id": row.get("best_library_id"),
-                    "best_library_distance_m": row.get("best_library_distance_m"),
-                },
+                "properties": props,
             }
         )
     return {"type": "FeatureCollection", "features": features}
-

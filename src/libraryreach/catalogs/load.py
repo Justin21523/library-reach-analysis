@@ -24,6 +24,7 @@ from typing import Any
 
 # `pandas` is our table engine for CSV I/O and column normalization.
 import pandas as pd
+import hashlib
 
 
 def _rename_common_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -104,6 +105,40 @@ def _coerce_lat_lon(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _stable_key_for_row(row: pd.Series, keys: list[str]) -> str:
+    parts: list[str] = []
+    for k in keys:
+        v = row.get(k)
+        if v is None or pd.isna(v):
+            parts.append("")
+            continue
+        if k in {"lat", "lon"}:
+            try:
+                parts.append(f"{float(v):.6f}")
+            except Exception:
+                parts.append("")
+        else:
+            parts.append(str(v).strip())
+    raw = "|".join(parts).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()[:16]
+
+
+def _add_stable_key(df: pd.DataFrame, *, label: str) -> pd.DataFrame:
+    """
+    Add a deterministic `stable_key` to help track records even if upstream IDs drift.
+    This does not replace `id` (which remains the primary key).
+    """
+    if "stable_key" in df.columns:
+        return df
+    keys = ["city", "district", "name", "address", "lat", "lon"]
+    missing = [k for k in keys if k not in df.columns]
+    if missing:
+        # If we cannot build a stable key, leave the column absent (validators will catch schema issues).
+        return df
+    df["stable_key"] = df.apply(lambda r: _stable_key_for_row(r, keys), axis=1)
+    return df
+
+
 def load_libraries_catalog(settings: dict[str, Any]) -> pd.DataFrame:
     # Read the catalogs directory from settings so tests can point at temporary folders.
     catalogs_dir = Path(settings["paths"]["catalogs_dir"])
@@ -119,6 +154,8 @@ def load_libraries_catalog(settings: dict[str, Any]) -> pd.DataFrame:
     df = _normalize_city(df, aliases=settings.get("aoi", {}).get("city_aliases"))
     # Coerce coordinates to numbers so spatial code can rely on `float`-like values.
     df = _coerce_lat_lon(df)
+    # Add a deterministic stable key for traceability across data refreshes.
+    df = _add_stable_key(df, label="libraries")
     # Re-normalize IDs defensively (CSV inference can sometimes surprise us).
     if "id" in df.columns:
         # IDs are treated as stable string keys, never as numbers.
@@ -144,6 +181,8 @@ def load_outreach_candidates_catalog(settings: dict[str, Any]) -> pd.DataFrame:
     df = _normalize_candidate_type(df)
     # Coerce coordinates to numbers so spatial code can rely on `float`-like values.
     df = _coerce_lat_lon(df)
+    # Add a deterministic stable key for traceability across data refreshes.
+    df = _add_stable_key(df, label="outreach_candidates")
     # Re-normalize IDs defensively (CSV inference can sometimes surprise us).
     if "id" in df.columns:
         # IDs are treated as stable string keys, never as numbers.
