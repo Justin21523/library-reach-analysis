@@ -23,6 +23,18 @@ Phase 1 focuses on an explainable baseline: **transit stop density within 500m/1
   - The web UI includes a control console for what-if parameter tuning and keyboard shortcuts (press `?`).
   - The map uses MapLibre + OSM raster tiles (internet required in the browser).
 
+## Docker (Always-On Ingestion)
+
+- Create `.env` with TDX credentials: `cp .env.example .env`
+- Start API + background worker (auto-restart): `docker compose up -d --build`
+- If you edit `.env`, restart containers to apply env changes: `docker compose restart`
+- Default host port is `8001` (set `LR_HOST_PORT=8000 docker compose up -d --build` if you want `:8000`).
+- Tail logs:
+  - `docker compose logs -f worker`
+  - `docker compose logs -f api`
+- Tune rate limiting / retries in `config/default.yaml` under `tdx.*` (for example `min_request_interval_s`).
+- Ops notes (health/backup/autostart): `docs/10_ops.md`
+
 ## Configuration
 
 - `config/default.yaml` defines cities, buffer radii, scoring weights, thresholds, and planning parameters.

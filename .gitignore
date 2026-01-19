@@ -6,6 +6,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .DS_Store
+.vscode/
+backups/
 
 # Runtime outputs
 cache/
@@ -15,4 +17,3 @@ reports/
 # Data outputs (catalogs are versioned)
 data/raw/
 data/processed/
-

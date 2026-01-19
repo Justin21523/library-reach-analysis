@@ -1,0 +1,33 @@
+services:
+  api:
+    build: .
+    command: uvicorn libraryreach.api.main:app --host 0.0.0.0 --port 8000
+    env_file:
+      - .env
+    ports:
+      - "${LR_HOST_PORT:-8001}:8000"
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    command: libraryreach daemon --config config/default.yaml --scenario weekday
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+    restart: unless-stopped

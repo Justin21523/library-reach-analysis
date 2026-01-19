@@ -1,0 +1,16 @@
+.git
+.gitignore
+.pytest_cache
+.vscode
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+cache
+logs
+reports
+
+data/raw
+data/processed
