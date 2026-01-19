@@ -1,192 +1,280 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LibraryReach Control Console</title>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
-    />
+    <title>LibraryReach</title>
+    <meta name="description" content="LibraryReach — 以可解釋的交通可達性指標，支援公共服務與外展規劃。" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
-    <div id="layout">
-      <aside id="sidebar">
-        <div class="header">
-          <div class="title">LibraryReach</div>
-          <div class="subtitle">Control Console (baseline + what-if)</div>
-          <div id="status" class="status">Loading…</div>
-        </div>
-
-        <div class="foldout" data-foldout="controls">
-          <button class="foldout-header" type="button">Controls</button>
-          <div class="foldout-body">
-            <div class="row">
-              <label class="field">
-                <span>Scenario</span>
-                <select id="scenario"></select>
-              </label>
-              <button id="apply" class="btn primary" type="button" title="Ctrl+Enter">Apply</button>
-              <button id="reset" class="btn" type="button">Reset</button>
-            </div>
-            <div class="row">
-              <button id="validate" class="btn" type="button">Validate Catalogs</button>
-              <button id="help" class="btn" type="button" title="?">Shortcuts</button>
-            </div>
-
-            <div class="subheader">Cities</div>
-            <div id="cities" class="checkbox-grid"></div>
-
-            <div class="subheader">Layers</div>
-            <div class="checkbox-grid">
-              <label class="check"><input id="layerLibraries" type="checkbox" checked />Libraries (L)</label>
-              <label class="check"><input id="layerDeserts" type="checkbox" checked />Deserts (D)</label>
-              <label class="check"><input id="layerOutreach" type="checkbox" checked />Outreach (O)</label>
-            </div>
+  <body class="home">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-text">
+            <div class="brand-title">LibraryReach</div>
+            <div class="brand-subtitle">公共服務可達性 × 外展規劃</div>
           </div>
-        </div>
-
-        <div class="foldout" data-foldout="scoring">
-          <button class="foldout-header" type="button">Scoring</button>
-          <div class="foldout-body">
-            <div class="subheader">Mode Weights</div>
-            <div class="row">
-              <label class="field">
-                <span>Bus</span>
-                <input id="wBus" type="number" min="0" max="1" step="0.05" />
-              </label>
-              <label class="field">
-                <span>Metro</span>
-                <input id="wMetro" type="number" min="0" max="1" step="0.05" />
-              </label>
-            </div>
-
-            <div class="subheader">Radius Weights</div>
-            <div class="row">
-              <label class="field">
-                <span>500m</span>
-                <input id="w500" type="number" min="0" max="1" step="0.05" />
-              </label>
-              <label class="field">
-                <span>1000m</span>
-                <input id="w1000" type="number" min="0" max="1" step="0.05" />
-              </label>
-            </div>
-
-            <div class="subheader">Density Targets (per km²)</div>
-            <div class="grid2">
-              <label class="field">
-                <span>Bus @500</span>
-                <input id="tBus500" type="number" min="0" step="1" />
-              </label>
-              <label class="field">
-                <span>Bus @1000</span>
-                <input id="tBus1000" type="number" min="0" step="1" />
-              </label>
-              <label class="field">
-                <span>Metro @500</span>
-                <input id="tMetro500" type="number" min="0" step="0.5" />
-              </label>
-              <label class="field">
-                <span>Metro @1000</span>
-                <input id="tMetro1000" type="number" min="0" step="0.5" />
-              </label>
-            </div>
-            <div class="hint">Tip: keep weights normalized; the UI auto-fixes minor drift.</div>
-          </div>
-        </div>
-
-        <div class="foldout" data-foldout="planning">
-          <button class="foldout-header" type="button">Planning</button>
-          <div class="foldout-body">
-            <div class="subheader">Deserts</div>
-            <div class="row">
-              <label class="field">
-                <span>Threshold (0–100)</span>
-                <input id="desertThreshold" type="number" min="0" max="100" step="1" />
-              </label>
-              <label class="field">
-                <span>Grid (m)</span>
-                <input id="gridSize" type="number" min="250" step="250" />
-              </label>
-            </div>
-            <div class="row">
-              <label class="field">
-                <span>Search Radius (m)</span>
-                <input id="desertSearchRadius" type="number" min="500" step="250" />
-              </label>
-            </div>
-
-            <div class="subheader">Outreach</div>
-            <div class="row">
-              <label class="field">
-                <span>Coverage Radius (m)</span>
-                <input id="outreachRadius" type="number" min="250" step="250" />
-              </label>
-              <label class="field">
-                <span>Top N / City</span>
-                <input id="outreachTopN" type="number" min="1" step="1" />
-              </label>
-            </div>
-            <div class="row">
-              <label class="field">
-                <span>Coverage Weight</span>
-                <input id="wCoverage" type="number" min="0" max="1" step="0.05" />
-              </label>
-              <label class="field">
-                <span>Site Access Weight</span>
-                <input id="wSite" type="number" min="0" max="1" step="0.05" />
-              </label>
-            </div>
-
-            <div class="subheader">Candidate Types</div>
-            <div id="candidateTypes" class="checkbox-grid"></div>
-          </div>
-        </div>
-
-        <div class="foldout" data-foldout="inspector">
-          <button class="foldout-header" type="button">Inspector</button>
-          <div class="foldout-body">
-            <div id="inspector" class="muted">Click a library marker.</div>
-          </div>
-        </div>
-
-        <div class="foldout" data-foldout="outreach">
-          <button class="foldout-header" type="button">Outreach List</button>
-          <div class="foldout-body">
-            <div id="outreachList" class="muted">Loading…</div>
-          </div>
-        </div>
-      </aside>
-      <main id="map"></main>
-    </div>
-
-    <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true">
-      <div class="overlay-card">
-        <div class="overlay-title">Keyboard Shortcuts</div>
-        <div class="overlay-body">
-          <div class="shortcut-grid">
-            <div class="k">W/A/S/D</div><div class="v">Pan</div>
-            <div class="k">Q/E</div><div class="v">Rotate</div>
-            <div class="k">R/F</div><div class="v">Zoom in/out</div>
-            <div class="k">Z/X</div><div class="v">Pitch up/down</div>
-            <div class="k">0</div><div class="v">Reset bearing/pitch</div>
-            <div class="k">L/D/O</div><div class="v">Toggle layers</div>
-            <div class="k">Ctrl+Enter</div><div class="v">Apply parameters</div>
-            <div class="k">Ctrl+S</div><div class="v">Save preset (local)</div>
-            <div class="k">?</div><div class="v">Toggle this panel</div>
-            <div class="k">Esc</div><div class="v">Close panel</div>
-          </div>
-          <div class="hint">Tip: hold Shift to speed up camera, hold Alt to slow down.</div>
-        </div>
-        <div class="overlay-footer">
-          <button id="closeOverlay" class="btn primary" type="button">Close</button>
+        </a>
+        <nav class="tabs" aria-label="Primary">
+          <a class="tab" href="#overview">總覽</a>
+          <a class="tab" href="#story">故事線</a>
+          <a class="tab" href="#method">方法</a>
+          <a class="tab" href="#results">成果</a>
+          <a class="tab" href="#whatif">情境模擬</a>
+          <a class="tab" href="/brief">一頁簡報</a>
+        </nav>
+        <div class="topbar-actions">
+          <a class="btn subtle" href="/results">成果頁</a>
+          <a class="btn primary" href="/console">進入控制台</a>
+          <button id="themeToggle" class="btn subtle" type="button" aria-pressed="false" title="Toggle theme">Light</button>
         </div>
       </div>
-    </div>
+    </header>
 
-    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <script src="/static/app.js"></script>
+    <main class="home-main">
+      <section id="overview" class="section hero">
+        <div class="hero-grid">
+          <div>
+            <div class="hero-kicker">服務設計 / 公共政策視角</div>
+            <h1 class="hero-title">讓「到得了」變得可被看見，並可被改善。</h1>
+            <p class="hero-lead">
+              LibraryReach 用可解釋的交通可達性指標，協助你把「民眾是不是容易到達圖書館」說清楚：找出服務落差、比較情境，並產出外展點位建議。
+            </p>
+
+            <div class="audience">
+              <div class="audience-title">你今天想用什麼角度閱讀？</div>
+              <div class="audience-tabs" role="tablist" aria-label="Audience">
+                <button class="audience-tab active" type="button" data-audience="public" role="tab" aria-selected="true">
+                  一般民眾
+                </button>
+                <button class="audience-tab" type="button" data-audience="library" role="tab" aria-selected="false">
+                  館方/第一線
+                </button>
+                <button class="audience-tab" type="button" data-audience="policy" role="tab" aria-selected="false">
+                  決策/跨局處
+                </button>
+              </div>
+              <div id="audienceBlurb" class="audience-blurb">
+                這是公共溝通版：用最少術語解釋「到得了」的差異，並提供可以採取的行動方向。
+              </div>
+            </div>
+
+            <div class="hero-cta">
+              <a id="ctaPrimary" class="btn primary" href="/console">開始探索（控制台）</a>
+              <a id="ctaSecondary" class="btn" href="/brief">產出一頁簡報</a>
+            </div>
+            <div id="homeStatus" class="home-status">正在載入系統狀態…</div>
+          </div>
+          <div class="hero-card">
+            <div class="hero-card-title">你會得到什麼</div>
+            <div class="hero-card-grid">
+              <div class="metric">
+                <div id="mkScore" class="metric-k">可達性分數</div>
+                <div id="mScore" class="metric-v">—</div>
+                <div id="mhScore" class="metric-h">每個館點 0–100，可解釋</div>
+              </div>
+              <div class="metric">
+                <div id="mkDeserts" class="metric-k">Desert cells</div>
+                <div id="mDeserts" class="metric-v">—</div>
+                <div id="mhDeserts" class="metric-h">低於門檻的格網</div>
+              </div>
+              <div class="metric">
+                <div id="mkOutreach" class="metric-k">外展建議</div>
+                <div id="mOutreach" class="metric-v">—</div>
+                <div id="mhOutreach" class="metric-h">候選點位排序</div>
+              </div>
+              <div class="metric">
+                <div id="mkCities" class="metric-k">城市覆蓋</div>
+                <div id="mCities" class="metric-v">—</div>
+                <div id="mhCities" class="metric-h">可切換城市清單</div>
+              </div>
+            </div>
+            <div class="hero-note">
+              提示：若尚未跑 pipeline，首頁仍可說明方法與流程；控制台會顯示缺少輸出檔案的原因。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="start" class="section">
+        <div class="section-title">導覽式開始（不用先學會控制台）</div>
+        <div class="callout">
+          <div class="callout-title">先選情境與城市，再看基礎指標</div>
+          <div class="callout-body">
+            這個流程會先顯示目前 baseline 指標（如果已有 pipeline 輸出），再一鍵帶你進控制台做 what-if。
+          </div>
+          <div class="wizard">
+            <label class="field">
+              <span>Scenario</span>
+              <select id="wizScenario"></select>
+            </label>
+            <div class="wizard-cities">
+              <div class="wizard-title">Cities</div>
+              <div id="wizCities" class="checkbox-grid"></div>
+            </div>
+            <div class="wizard-kpis">
+              <div class="wizard-kpi">
+                <div class="metric-k">Avg score</div>
+                <div id="wizScore" class="metric-v">—</div>
+              </div>
+              <div class="wizard-kpi">
+                <div class="metric-k">Deserts</div>
+                <div id="wizDeserts" class="metric-v">—</div>
+              </div>
+              <div class="wizard-kpi">
+                <div class="metric-k">Outreach</div>
+                <div id="wizOutreach" class="metric-v">—</div>
+              </div>
+            </div>
+            <div class="wizard-actions">
+              <a id="wizBrief" class="btn subtle" href="/brief">開啟一頁簡報</a>
+              <a id="wizConsole" class="btn primary" href="/console">帶我進控制台</a>
+              <button id="wizSave" class="btn" type="button">儲存這組假設</button>
+              <button id="wizCopy" class="btn subtle" type="button">分享連結</button>
+            </div>
+            <div id="wizNarrative" class="story" style="display:none"></div>
+            <div id="wizStatus" class="home-status">提示：若未有輸出檔案，請先跑 pipeline。</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="story" class="section">
+        <div class="section-title">故事線（給大眾的一句話到一頁）</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">1) 問題</div>
+            <div class="card-body">
+              公共服務的公平，不只在於「有沒有提供」，也在於「到不到得了」。交通與轉乘成本，會讓部分地區的居民較難使用圖書館服務。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">2) 洞察</div>
+            <div class="card-body">
+              服務落差往往呈現「區域性」：不是單點，而是一整片生活圈的移動阻力。把它變成可視化的 deserts，才能公平討論資源配置。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">3) 行動</div>
+            <div class="card-body">
+              外展、合作據點、移動服務與交通銜接改善，可以用「最小投入、最大覆蓋」的方式，逐步縮小 deserts 並提升整體可達性。
+            </div>
+          </div>
+        </div>
+        <div class="callout" style="margin-top: 12px">
+          <div class="callout-title">把模型輸出變成政策語言</div>
+          <div class="callout-body">
+            你可以用控制台產生「What-if story」：把參數變更轉成可讀的摘要（平均分數、deserts 變化、外展清單），並用 URL 分享同一組假設。
+          </div>
+          <div class="callout-actions">
+            <a class="btn primary" href="/console">做情境模擬</a>
+            <a class="btn" href="/brief">產出一頁簡報</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="method" class="section">
+        <div class="section-title">方法（可解釋、可溝通）</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">1) 基礎可達性分數</div>
+            <div class="card-body">
+              以館點周邊 500m / 1000m 緩衝區計算站點密度，依交通模式與距離權重加總為 0–100 分；分數高代表「更容易靠公共運輸抵達」。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">2) Access deserts</div>
+            <div class="card-body">
+              用格網掃描城市範圍，估計每個 cell 的「最佳可達性」並與門檻比較，標示出服務落差熱點。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">3) 外展點位建議</div>
+            <div class="card-body">
+              在 deserts 周邊依「能覆蓋落差」與「場址本身可達性」打分，產出 Top N 候選點位，支援場域合作與政策溝通。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="results" class="section">
+        <div class="section-title">成果（用故事說明）</div>
+        <div class="split">
+          <div class="card">
+            <div class="card-title">一頁式摘要（適合簡報）</div>
+            <div class="card-body">
+              將「目前情境 → 變更 → 指標影響」轉成一段可讀的敘述：平均分數、desert 數量、分數分布與外展清單。
+            </div>
+            <div class="card-foot">
+              <a class="btn subtle" href="/brief">開啟一頁簡報</a>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">可追溯的輸出</div>
+            <div class="card-body">
+              pipeline 會寫入處理後資料與報表（例如 catalogs validation），讓資料品質與決策脈絡可被追蹤。
+            </div>
+            <div class="card-foot">
+              <a class="btn subtle" href="/health">查看 health</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="whatif" class="section">
+        <div class="section-title">情境模擬（What-if）</div>
+        <div class="callout">
+          <div class="callout-title">把參數變更轉成政策語言</div>
+          <div class="callout-body">
+            在控制台調整權重、門檻、格網與外展半徑後，系統會用一致的敘述格式呈現「影響」，並可用 URL 分享同一組設定。
+          </div>
+          <div class="callout-actions">
+            <a class="btn primary" href="/console">前往控制台</a>
+            <a class="btn" href="/brief">列印一頁簡報</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="data" class="section">
+        <div class="section-title">資料與設定（讓討論有依據）</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">Catalogs</div>
+            <div class="card-body">
+              館點與外展候選點位來自 `data/catalogs/*`。你可以在控制台點選 Validate Catalogs 產出檢核報告。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">Scenario 設定</div>
+            <div class="card-body">
+              `config/default.yaml` 與 `config/scenarios/*.yaml` 支援不同情境（weekday / weekend / after_school）的權重與門檻。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">分享連結</div>
+            <div class="card-body">
+              控制台的 Copy Link 會把 scenario、城市與參數寫進 URL，方便跨角色共讀同一份決策假設。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="home-footer">
+        <div class="footer-inner">
+          <div class="muted">LibraryReach · Phase 1 MVP</div>
+          <div class="footer-actions">
+            <a class="btn subtle" href="/console">Control Console</a>
+            <a class="btn subtle" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
+              >OSM</a
+            >
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <script src="/static/preset.js"></script>
+    <script src="/static/narrative.js"></script>
+    <script src="/static/home.js"></script>
   </body>
 </html>

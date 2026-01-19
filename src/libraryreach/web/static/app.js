@@ -21,6 +21,9 @@ const state = {
   config: null,
   scenario: "weekday",
   lastResult: null,
+  baselineStats: null,
+  currentStats: null,
+  hoverPopup: null,
   keysDown: new Set(),
   cameraLoop: null,
   layers: {
@@ -32,6 +35,34 @@ const state = {
 
 function el(id) {
   return document.getElementById(id);
+}
+
+function applyTheme(theme) {
+  const t = theme === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", t);
+
+  const btn = el("themeToggle");
+  if (btn) {
+    btn.textContent = t === "dark" ? "Dark" : "Light";
+    btn.setAttribute("aria-pressed", t === "dark" ? "true" : "false");
+    btn.title = t === "dark" ? "Switch to light theme" : "Switch to dark theme";
+  }
+}
+
+function initTheme() {
+  const stored = localStorage.getItem("lr_theme");
+  const theme = stored === "dark" ? "dark" : "light";
+  applyTheme(theme);
+
+  const btn = el("themeToggle");
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const cur = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+      const next = cur === "dark" ? "light" : "dark";
+      localStorage.setItem("lr_theme", next);
+      applyTheme(next);
+    });
+  }
 }
 
 async function fetchJson(path, options = {}) {
@@ -47,11 +78,187 @@ function setStatus(text) {
   el("status").textContent = text;
 }
 
+function showNotice(message, kind = "info", { timeoutMs = 5000 } = {}) {
+  const box = el("notice");
+  const text = el("noticeText");
+  if (!box || !text) return;
+  box.classList.remove("hidden", "success", "error", "warning");
+  if (kind === "success" || kind === "error" || kind === "warning") box.classList.add(kind);
+  text.textContent = message;
+  if (timeoutMs && timeoutMs > 0) {
+    window.setTimeout(() => {
+      if (text.textContent === message) box.classList.add("hidden");
+    }, timeoutMs);
+  }
+}
+
+function hideNotice() {
+  const box = el("notice");
+  if (!box) return;
+  box.classList.add("hidden");
+}
+
 function fmt(n, digits = 1) {
   if (n === null || n === undefined) return "-";
   const v = Number(n);
   if (Number.isNaN(v)) return "-";
   return v.toFixed(digits);
+}
+
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function mean(values) {
+  let sum = 0;
+  let n = 0;
+  for (const v of values || []) {
+    const x = Number(v);
+    if (!Number.isFinite(x)) continue;
+    sum += x;
+    n += 1;
+  }
+  return n > 0 ? sum / n : null;
+}
+
+function computeLibraryStatsFromRows(rows) {
+  const scores = (rows || []).map((r) => r?.accessibility_score);
+  const avg = mean(scores);
+  let low = 0;
+  let mid = 0;
+  let high = 0;
+  for (const s of scores) {
+    const v = Number(s);
+    if (!Number.isFinite(v)) continue;
+    if (v < 40) low += 1;
+    else if (v < 70) mid += 1;
+    else high += 1;
+  }
+  return { count: (rows || []).length, avg_score: avg, buckets: { low, mid, high } };
+}
+
+function computeLibraryStatsFromGeojson(geojson) {
+  const features = geojson?.features || [];
+  const rows = features.map((f) => f?.properties || {});
+  return computeLibraryStatsFromRows(rows);
+}
+
+function computeDesertStatsFromGeojson(geojson) {
+  const features = geojson?.features || [];
+  const desert = features.filter((f) => Boolean(f?.properties?.is_desert));
+  const effectiveScores = desert.map((f) => f?.properties?.effective_score_0_100);
+  const gaps = desert.map((f) => f?.properties?.gap_to_threshold);
+  return { desert_count: desert.length, avg_effective_score: mean(effectiveScores), avg_gap: mean(gaps) };
+}
+
+function computeOutreachStatsFromRows(rows) {
+  const scores = (rows || []).map((r) => r?.outreach_score);
+  const avg = mean(scores);
+  let best = null;
+  for (const s of scores) {
+    const v = Number(s);
+    if (!Number.isFinite(v)) continue;
+    best = best === null ? v : Math.max(best, v);
+  }
+  return { count: (rows || []).length, avg_score: avg, best_score: best };
+}
+
+function formatDeltaPill(delta, { digits = 1, goodWhenNegative = false } = {}) {
+  const d = Number(delta);
+  if (!Number.isFinite(d) || d === 0) return "";
+  const sign = d > 0 ? "+" : "";
+  const good = goodWhenNegative ? d < 0 : d > 0;
+  const cls = good ? "pos" : "neg";
+  return `<span class="delta ${cls}">${sign}${fmt(d, digits)}</span>`;
+}
+
+function renderStory() {
+  const container = el("story");
+  if (!container) return;
+
+  const { scenario, cities, patch } = readConfigPatchFromForm();
+  const threshold = patch?.planning?.deserts?.threshold_score;
+  const grid = patch?.spatial?.grid?.cell_size_m;
+  const radius = patch?.planning?.outreach?.coverage_radius_m;
+  const topN = patch?.planning?.outreach?.top_n_per_city;
+
+  const baseline = state.baselineStats;
+  const current = state.currentStats;
+
+  if (!current) {
+    container.innerHTML = `
+      <div class="story-title">Setup snapshot</div>
+      <div class="popup-subtitle">Scenario <b>${escapeHtml(scenario)}</b> · ${cities.length} city(s)</div>
+      <div class="story-grid">
+        <div class="story-kv"><div class="k">Desert threshold</div><div>${fmt(threshold, 0)}</div></div>
+        <div class="story-kv"><div class="k">Grid size</div><div>${fmt(grid, 0)} m</div></div>
+        <div class="story-kv"><div class="k">Outreach radius</div><div>${fmt(radius, 0)} m</div></div>
+        <div class="story-kv"><div class="k">Top N / city</div><div>${fmt(topN, 0)}</div></div>
+      </div>
+    `;
+    return;
+  }
+
+  const bLib = baseline?.libraries || null;
+  const cLib = current?.libraries || null;
+  const bDes = baseline?.deserts || null;
+  const cDes = current?.deserts || null;
+  const cOut = current?.outreach || null;
+
+  const deltaAvgScore =
+    bLib?.avg_score !== null && bLib?.avg_score !== undefined && cLib?.avg_score !== null && cLib?.avg_score !== undefined
+      ? cLib.avg_score - bLib.avg_score
+      : null;
+  const deltaDeserts =
+    bDes?.desert_count !== null &&
+    bDes?.desert_count !== undefined &&
+    cDes?.desert_count !== null &&
+    cDes?.desert_count !== undefined
+      ? cDes.desert_count - bDes.desert_count
+      : null;
+
+  container.innerHTML = `
+    <div class="story-title">What-if story</div>
+    <div class="popup-subtitle">Scenario <b>${escapeHtml(scenario)}</b> · ${cities.length} city(s) · Threshold ${fmt(
+      threshold,
+      0
+    )} · Grid ${fmt(grid, 0)}m</div>
+    <div class="story-grid">
+      <div class="story-kv">
+        <div class="k">Avg access score</div>
+        <div><b>${fmt(cLib?.avg_score, 1)}</b>${deltaAvgScore === null ? "" : formatDeltaPill(deltaAvgScore, { digits: 1 })}</div>
+      </div>
+      <div class="story-kv">
+        <div class="k">Access deserts</div>
+        <div><b>${fmt(cDes?.desert_count, 0)}</b>${deltaDeserts === null ? "" : formatDeltaPill(deltaDeserts, { digits: 0, goodWhenNegative: true })}</div>
+      </div>
+      <div class="story-kv">
+        <div class="k">Libraries analyzed</div>
+        <div><b>${fmt(cLib?.count, 0)}</b></div>
+      </div>
+      <div class="story-kv">
+        <div class="k">Outreach list</div>
+        <div><b>${fmt(cOut?.count, 0)}</b> (best ${fmt(cOut?.best_score, 1)})</div>
+      </div>
+      <div class="story-kv">
+        <div class="k">Score buckets</div>
+        <div>${fmt(cLib?.buckets?.low, 0)} low · ${fmt(cLib?.buckets?.mid, 0)} mid · ${fmt(cLib?.buckets?.high, 0)} high</div>
+      </div>
+      <div class="story-kv">
+        <div class="k">Baseline</div>
+        <div>${baseline ? "Pipeline outputs" : "—"}</div>
+      </div>
+    </div>
+  `;
+}
+
+function safeNowMs() {
+  return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
 }
 
 function normalizePair(a, b) {
@@ -60,6 +267,52 @@ function normalizePair(a, b) {
   const s = x + y;
   if (s <= 0) return [0.5, 0.5];
   return [x / s, y / s];
+}
+
+function toUrlSafeBase64(bytes) {
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function fromUrlSafeBase64(s) {
+  const base64 = s.replaceAll("-", "+").replaceAll("_", "/");
+  const pad = base64.length % 4 === 0 ? "" : "=".repeat(4 - (base64.length % 4));
+  const binary = atob(base64 + pad);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+function encodePresetToQuery(preset) {
+  const bytes = new TextEncoder().encode(JSON.stringify(preset));
+  return toUrlSafeBase64(bytes);
+}
+
+function decodePresetFromQuery(s) {
+  const bytes = fromUrlSafeBase64(s);
+  const json = new TextDecoder().decode(bytes);
+  return JSON.parse(json);
+}
+
+function writePresetToUrl(preset) {
+  const q = new URLSearchParams(window.location.search);
+  q.set("lr", encodePresetToQuery(preset));
+  const url = `${window.location.pathname}?${q.toString()}`;
+  window.history.replaceState(null, "", url);
+}
+
+function readPresetFromUrl() {
+  const q = new URLSearchParams(window.location.search);
+  const raw = q.get("lr");
+  if (!raw) return null;
+  try {
+    const p = decodePresetFromQuery(raw);
+    if (!p || typeof p !== "object") return null;
+    return p;
+  } catch {
+    return null;
+  }
 }
 
 function readCheckboxGroup(containerId) {
@@ -150,6 +403,50 @@ function applyConfigToForm(config) {
   );
   el("wCoverage").value = fmt(wCov, 2);
   el("wSite").value = fmt(wSite, 2);
+
+  state.currentStats = null;
+  renderStory();
+}
+
+function applyPresetToForm(p) {
+  if (!p || typeof p !== "object") return false;
+  if (p.scenario) el("scenario").value = p.scenario;
+  if (Array.isArray(p.cities)) writeCheckboxGroup("cities", p.cities);
+
+  if (p.patch?.scoring?.mode_weights) {
+    el("wBus").value = fmt(p.patch.scoring.mode_weights.bus, 2);
+    el("wMetro").value = fmt(p.patch.scoring.mode_weights.metro, 2);
+  }
+  if (p.patch?.scoring?.radius_weights) {
+    el("w500").value = fmt(p.patch.scoring.radius_weights["500"], 2);
+    el("w1000").value = fmt(p.patch.scoring.radius_weights["1000"], 2);
+  }
+  if (p.patch?.scoring?.density_targets_per_km2) {
+    el("tBus500").value = p.patch.scoring.density_targets_per_km2.bus?.["500"] ?? el("tBus500").value;
+    el("tBus1000").value = p.patch.scoring.density_targets_per_km2.bus?.["1000"] ?? el("tBus1000").value;
+    el("tMetro500").value = p.patch.scoring.density_targets_per_km2.metro?.["500"] ?? el("tMetro500").value;
+    el("tMetro1000").value = p.patch.scoring.density_targets_per_km2.metro?.["1000"] ?? el("tMetro1000").value;
+  }
+  if (p.patch?.planning?.deserts) {
+    el("desertThreshold").value = p.patch.planning.deserts.threshold_score ?? el("desertThreshold").value;
+    el("desertSearchRadius").value = p.patch.planning.deserts.library_search_radius_m ?? el("desertSearchRadius").value;
+  }
+  if (p.patch?.spatial?.grid) {
+    el("gridSize").value = p.patch.spatial.grid.cell_size_m ?? el("gridSize").value;
+  }
+  if (p.patch?.planning?.outreach) {
+    el("outreachRadius").value = p.patch.planning.outreach.coverage_radius_m ?? el("outreachRadius").value;
+    el("outreachTopN").value = p.patch.planning.outreach.top_n_per_city ?? el("outreachTopN").value;
+    el("wCoverage").value = fmt(p.patch.planning.outreach.weight_coverage, 2);
+    el("wSite").value = fmt(p.patch.planning.outreach.weight_site_access, 2);
+    if (Array.isArray(p.patch.planning.outreach.allowed_candidate_types)) {
+      writeCheckboxGroup("candidateTypes", p.patch.planning.outreach.allowed_candidate_types);
+    }
+  }
+
+  state.currentStats = null;
+  renderStory();
+  return true;
 }
 
 function readConfigPatchFromForm() {
@@ -274,6 +571,7 @@ function updateLayerToggles() {
   setLayerVisibility("libraries", state.layers.libraries);
   setLayerVisibility("deserts", state.layers.deserts);
   setLayerVisibility("outreach", state.layers.outreach);
+  state.hoverPopup?.remove();
 }
 
 function renderInspectorLibrary(lib) {
@@ -356,10 +654,12 @@ function fitToGeojson(geojson) {
 }
 
 async function loadBaselineOutputs() {
+  const baseline = { libraries: null, deserts: null, outreach: null };
   try {
     const libs = await fetchJson("/geo/libraries");
     setGeojson("libraries", libs);
     fitToGeojson(libs);
+    baseline.libraries = computeLibraryStatsFromGeojson(libs);
   } catch (e) {
     console.warn(e);
   }
@@ -367,6 +667,7 @@ async function loadBaselineOutputs() {
   try {
     const deserts = await fetchJson("/geo/deserts");
     setGeojson("deserts", deserts);
+    baseline.deserts = computeDesertStatsFromGeojson(deserts);
   } catch (e) {
     console.warn(e);
   }
@@ -382,13 +683,27 @@ async function loadBaselineOutputs() {
         properties: r,
       })),
     });
+    baseline.outreach = computeOutreachStatsFromRows(recs);
   } catch (e) {
     console.warn(e);
+  }
+
+  if (baseline.libraries || baseline.deserts || baseline.outreach) {
+    state.baselineStats = baseline;
+    renderStory();
   }
 }
 
 async function runWhatIf() {
   const { scenario, cities, patch } = readConfigPatchFromForm();
+  const applyBtn = el("apply");
+  const oldLabel = applyBtn?.textContent || "Apply";
+  if (applyBtn) {
+    applyBtn.disabled = true;
+    applyBtn.textContent = "Applying…";
+  }
+
+  const t0 = safeNowMs();
   setStatus("Running what-if recomputation…");
   try {
     const res = await fetchJson("/analysis/whatif", {
@@ -402,16 +717,37 @@ async function runWhatIf() {
     setGeojson("outreach", res.outreach_geojson);
     renderOutreachList(res.outreach);
     fitToGeojson(res.libraries_geojson);
+    const took = Math.max(0, safeNowMs() - t0) / 1000;
     setStatus(`What-if updated: ${res.libraries.length} libraries, ${res.outreach.length} outreach sites`);
+    showNotice(
+      `Updated ${scenario} for ${cities.length} city(s) in ${fmt(took, 1)}s · ${res.libraries.length} libraries · ${res.outreach.length} outreach`,
+      "success",
+      { timeoutMs: 6500 }
+    );
+
+    state.currentStats = {
+      libraries: computeLibraryStatsFromRows(res.libraries || []),
+      deserts: computeDesertStatsFromGeojson(res.deserts_geojson),
+      outreach: computeOutreachStatsFromRows(res.outreach || []),
+    };
+    renderStory();
+    writePresetToUrl({ scenario, cities, patch });
   } catch (e) {
     setStatus(`What-if failed: ${e.message}`);
+    showNotice(`What-if failed: ${e.message}`, "error", { timeoutMs: 0 });
     console.error(e);
+  } finally {
+    if (applyBtn) {
+      applyBtn.disabled = false;
+      applyBtn.textContent = oldLabel;
+    }
   }
 }
 
 function resetFormToConfig() {
   if (!state.config) return;
   applyConfigToForm(state.config);
+  showNotice("Reset to scenario defaults.", "info", { timeoutMs: 3000 });
 }
 
 function savePreset() {
@@ -419,6 +755,8 @@ function savePreset() {
   const preset = { scenario, cities, patch };
   localStorage.setItem("lr_preset_v1", JSON.stringify(preset));
   setStatus("Preset saved locally.");
+  writePresetToUrl(preset);
+  showNotice("Preset saved locally and synced to URL.", "success", { timeoutMs: 3500 });
 }
 
 function loadPreset() {
@@ -426,39 +764,7 @@ function loadPreset() {
   if (!raw) return false;
   try {
     const p = JSON.parse(raw);
-    if (p.scenario) el("scenario").value = p.scenario;
-    if (Array.isArray(p.cities)) writeCheckboxGroup("cities", p.cities);
-    if (p.patch?.scoring?.mode_weights) {
-      el("wBus").value = fmt(p.patch.scoring.mode_weights.bus, 2);
-      el("wMetro").value = fmt(p.patch.scoring.mode_weights.metro, 2);
-    }
-    if (p.patch?.scoring?.radius_weights) {
-      el("w500").value = fmt(p.patch.scoring.radius_weights["500"], 2);
-      el("w1000").value = fmt(p.patch.scoring.radius_weights["1000"], 2);
-    }
-    if (p.patch?.scoring?.density_targets_per_km2) {
-      el("tBus500").value = p.patch.scoring.density_targets_per_km2.bus?.["500"] ?? el("tBus500").value;
-      el("tBus1000").value = p.patch.scoring.density_targets_per_km2.bus?.["1000"] ?? el("tBus1000").value;
-      el("tMetro500").value = p.patch.scoring.density_targets_per_km2.metro?.["500"] ?? el("tMetro500").value;
-      el("tMetro1000").value = p.patch.scoring.density_targets_per_km2.metro?.["1000"] ?? el("tMetro1000").value;
-    }
-    if (p.patch?.planning?.deserts) {
-      el("desertThreshold").value = p.patch.planning.deserts.threshold_score ?? el("desertThreshold").value;
-      el("desertSearchRadius").value =
-        p.patch.planning.deserts.library_search_radius_m ?? el("desertSearchRadius").value;
-    }
-    if (p.patch?.spatial?.grid) {
-      el("gridSize").value = p.patch.spatial.grid.cell_size_m ?? el("gridSize").value;
-    }
-    if (p.patch?.planning?.outreach) {
-      el("outreachRadius").value = p.patch.planning.outreach.coverage_radius_m ?? el("outreachRadius").value;
-      el("outreachTopN").value = p.patch.planning.outreach.top_n_per_city ?? el("outreachTopN").value;
-      el("wCoverage").value = fmt(p.patch.planning.outreach.weight_coverage, 2);
-      el("wSite").value = fmt(p.patch.planning.outreach.weight_site_access, 2);
-      if (Array.isArray(p.patch.planning.outreach.allowed_candidate_types)) {
-        writeCheckboxGroup("candidateTypes", p.patch.planning.outreach.allowed_candidate_types);
-      }
-    }
+    applyPresetToForm(p);
     setStatus("Preset loaded.");
     return true;
   } catch (e) {
@@ -549,6 +855,47 @@ function initUIHandlers() {
   el("validate").addEventListener("click", validateCatalogs);
   el("help").addEventListener("click", () => toggleOverlay(true));
   el("closeOverlay").addEventListener("click", () => toggleOverlay(false));
+  el("noticeClose").addEventListener("click", hideNotice);
+
+  el("copyLink").addEventListener("click", async () => {
+    try {
+      const preset = readConfigPatchFromForm();
+      writePresetToUrl(preset);
+      await navigator.clipboard.writeText(window.location.href);
+      showNotice("Link copied.", "success", { timeoutMs: 2000 });
+    } catch (e) {
+      console.warn(e);
+      showNotice("Copy failed. Please copy from the address bar.", "warning", { timeoutMs: 5000 });
+    }
+  });
+
+  const markDirty = () => {
+    state.currentStats = null;
+    renderStory();
+  };
+  for (const id of [
+    "wBus",
+    "wMetro",
+    "w500",
+    "w1000",
+    "tBus500",
+    "tBus1000",
+    "tMetro500",
+    "tMetro1000",
+    "desertThreshold",
+    "gridSize",
+    "desertSearchRadius",
+    "outreachRadius",
+    "outreachTopN",
+    "wCoverage",
+    "wSite",
+  ]) {
+    const node = el(id);
+    node?.addEventListener("input", markDirty);
+    node?.addEventListener("change", markDirty);
+  }
+  el("cities").addEventListener("change", markDirty);
+  el("candidateTypes").addEventListener("change", markDirty);
 
   el("scenario").addEventListener("change", async () => {
     const scenario = el("scenario").value;
@@ -556,8 +903,10 @@ function initUIHandlers() {
       const cfg = await fetchJson(`/control/config?scenario=${encodeURIComponent(scenario)}`);
       applyConfigToForm(cfg);
       setStatus(`Loaded scenario config: ${scenario}`);
+      showNotice(`Loaded scenario: ${scenario}`, "info", { timeoutMs: 2500 });
     } catch (e) {
       setStatus(`Failed to load scenario config: ${e.message}`);
+      showNotice(`Failed to load scenario: ${e.message}`, "error", { timeoutMs: 0 });
     }
   });
 
@@ -643,6 +992,25 @@ function initMap() {
       },
     });
 
+    const hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
+    state.hoverPopup = hoverPopup;
+
+    function showPopup(lngLat, html) {
+      hoverPopup.setLngLat(lngLat).setHTML(html).addTo(map);
+    }
+
+    function hidePopup() {
+      hoverPopup.remove();
+    }
+
+    function scoreBucket(score) {
+      const s = Number(score);
+      if (!Number.isFinite(s)) return "—";
+      if (s < 40) return "Low (0–40)";
+      if (s < 70) return "Medium (40–70)";
+      return "High (70–100)";
+    }
+
     map.on("mouseenter", "libraries", () => (map.getCanvas().style.cursor = "pointer"));
     map.on("mouseleave", "libraries", () => (map.getCanvas().style.cursor = ""));
     map.on("click", "libraries", async (e) => {
@@ -668,6 +1036,77 @@ function initMap() {
       }
     });
 
+    map.on("mousemove", "libraries", (e) => {
+      const f = e.features?.[0];
+      const props = f?.properties || {};
+      const name = props.name ?? "Library";
+      const city = props.city ?? "-";
+      const district = props.district ?? "-";
+      const score = Number(props.accessibility_score);
+      const html = `
+        <div class="popup-title">${escapeHtml(name)}</div>
+        <div class="popup-subtitle">${escapeHtml(city)} · ${escapeHtml(district)}</div>
+        <div class="popup-grid">
+          <div class="k">Score</div><div><b>${fmt(score, 1)}</b> · ${escapeHtml(scoreBucket(score))}</div>
+        </div>
+      `;
+      map.getCanvas().style.cursor = "pointer";
+      showPopup(e.lngLat, html);
+    });
+
+    map.on("mouseleave", "libraries", () => {
+      hidePopup();
+      map.getCanvas().style.cursor = "";
+    });
+
+    map.on("mousemove", "deserts", (e) => {
+      const f = e.features?.[0];
+      const props = f?.properties || {};
+      const city = props.city ?? "-";
+      const eff = props.effective_score_0_100;
+      const gap = props.gap_to_threshold;
+      const dist = props.best_library_distance_m;
+      const html = `
+        <div class="popup-title">Access desert cell</div>
+        <div class="popup-subtitle">${escapeHtml(city)}</div>
+        <div class="popup-grid">
+          <div class="k">Effective score</div><div><b>${fmt(eff, 1)}</b></div>
+          <div class="k">Gap to threshold</div><div>${fmt(gap, 1)}</div>
+          <div class="k">Nearest library</div><div>${fmt(dist, 0)} m</div>
+        </div>
+      `;
+      map.getCanvas().style.cursor = "help";
+      showPopup(e.lngLat, html);
+    });
+
+    map.on("mouseleave", "deserts", () => {
+      hidePopup();
+      map.getCanvas().style.cursor = "";
+    });
+
+    map.on("mousemove", "outreach", (e) => {
+      const f = e.features?.[0];
+      const props = f?.properties || {};
+      const name = props.name ?? props.id ?? "Outreach site";
+      const city = props.city ?? "-";
+      const district = props.district ?? "-";
+      const score = props.outreach_score;
+      const html = `
+        <div class="popup-title">${escapeHtml(name)}</div>
+        <div class="popup-subtitle">${escapeHtml(city)} · ${escapeHtml(district)}</div>
+        <div class="popup-grid">
+          <div class="k">Outreach score</div><div><b>${fmt(score, 1)}</b></div>
+        </div>
+      `;
+      map.getCanvas().style.cursor = "pointer";
+      showPopup(e.lngLat, html);
+    });
+
+    map.on("mouseleave", "outreach", () => {
+      hidePopup();
+      map.getCanvas().style.cursor = "";
+    });
+
     updateLayerToggles();
     setStatus("Map ready. Loading config…");
     resolveReady?.();
@@ -675,6 +1114,7 @@ function initMap() {
 }
 
 async function main() {
+  initTheme();
   initFoldouts();
   initUIHandlers();
   initKeybindings();
@@ -692,8 +1132,23 @@ async function main() {
   }
 
   await loadBaselineOutputs();
-  if (!loadPreset()) {
-    // no-op
+
+  const urlPreset = readPresetFromUrl();
+  if (urlPreset) {
+    if (urlPreset.scenario && urlPreset.scenario !== el("scenario").value) {
+      try {
+        const cfg = await fetchJson(`/control/config?scenario=${encodeURIComponent(urlPreset.scenario)}`);
+        applyConfigToForm(cfg);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    if (applyPresetToForm(urlPreset)) {
+      setStatus("Preset loaded from URL.");
+      showNotice("Loaded preset from URL.", "info", { timeoutMs: 3500 });
+    }
+  } else if (loadPreset()) {
+    showNotice("Loaded preset from local storage.", "info", { timeoutMs: 3500 });
   }
   setStatus("Ready. Press ? for shortcuts.");
 }

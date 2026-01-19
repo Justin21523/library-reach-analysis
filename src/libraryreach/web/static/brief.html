@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LibraryReach · 一頁簡報</title>
+    <meta name="description" content="LibraryReach 一頁式摘要（可列印/存成 PDF），用於公共溝通與跨角色共識。" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="home brief">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-text">
+            <div class="brand-title">LibraryReach</div>
+            <div class="brand-subtitle">一頁式摘要（可列印）</div>
+          </div>
+        </a>
+        <nav class="tabs" aria-label="Primary">
+          <a class="tab" href="/">主頁</a>
+          <a class="tab active" href="/brief">一頁簡報</a>
+          <a class="tab" href="/console">控制台</a>
+        </nav>
+        <div class="topbar-actions">
+          <button id="printBtn" class="btn primary" type="button">列印 / 存成 PDF</button>
+          <button id="themeToggle" class="btn subtle" type="button" aria-pressed="false" title="Toggle theme">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="home-main brief-main">
+      <section class="section brief-hero">
+        <div class="brief-hero-grid">
+          <div>
+            <div class="hero-kicker">面向大眾的政策敘事版</div>
+            <h1 class="brief-title">圖書館「到得了」的公共溝通摘要</h1>
+            <p class="hero-lead">
+              這份一頁簡報把模型輸出轉成可被理解的語言：<b>目前狀態</b>、<b>服務落差在哪裡</b>、以及<b>可以怎麼做</b>。
+            </p>
+            <div class="brief-meta">
+              <div class="pill">Generated <span id="generatedAt">—</span></div>
+              <div class="pill">Scenario <span id="scenarioName">—</span></div>
+            </div>
+          </div>
+          <div class="hero-card">
+            <div class="hero-card-title">核心指標（快速理解）</div>
+            <div class="hero-card-grid">
+              <div class="metric">
+                <div class="metric-k">平均可達性分數</div>
+                <div id="bScore" class="metric-v">—</div>
+                <div class="metric-h">0–100（越高越好）</div>
+              </div>
+              <div class="metric">
+                <div class="metric-k">服務落差（deserts）</div>
+                <div id="bDeserts" class="metric-v">—</div>
+                <div class="metric-h">格網數量（越少越好）</div>
+              </div>
+              <div class="metric">
+                <div class="metric-k">可分析館點數</div>
+                <div id="bLibraries" class="metric-v">—</div>
+                <div class="metric-h">具座標且可計算</div>
+              </div>
+              <div class="metric">
+                <div class="metric-k">外展建議點位</div>
+                <div id="bOutreach" class="metric-v">—</div>
+                <div class="metric-h">推薦清單數量</div>
+              </div>
+            </div>
+            <div class="hero-note" id="briefStatus">正在載入資料…</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">本次假設（可分享）</div>
+        <div class="card">
+          <div class="card-body">
+            <div id="assumptions" class="brief-assumptions muted">未指定 preset（顯示 baseline）。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">影響摘要</div>
+        <div class="card">
+          <div class="card-body">
+            <div id="briefAudience" class="audience">
+              <div class="audience-title">語氣切換</div>
+              <div class="audience-tabs" role="tablist" aria-label="Audience">
+                <button class="audience-tab active" type="button" data-audience="public" role="tab" aria-selected="true">
+                  一般民眾
+                </button>
+                <button class="audience-tab" type="button" data-audience="library" role="tab" aria-selected="false">
+                  館方/第一線
+                </button>
+                <button class="audience-tab" type="button" data-audience="policy" role="tab" aria-selected="false">
+                  決策/跨局處
+                </button>
+              </div>
+            </div>
+            <div id="impactSummary" class="brief-impact muted">若有提供 preset，會顯示 baseline 與 what-if 的差異摘要。</div>
+          </div>
+          <div class="card-foot">
+            <a id="openConsoleFromBrief" class="btn subtle" href="/console">用同一組假設打開控制台</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">問題與洞察</div>
+        <div class="split">
+          <div class="card">
+            <div class="card-title">問題：不是「有沒有館」，而是「到不到得了」</div>
+            <div class="card-body">
+              對許多人來說，交通可達性是使用公共服務的第一道門檻。當某些區域長期不容易抵達館點，會造成資訊、學習與社會支持的落差。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">洞察：服務落差通常是「累積」而不是單點</div>
+            <div class="card-body">
+              deserts 不是單一社區的問題，而是一整片生活圈的通勤與轉乘成本。把落差視覺化後，才能更公平地討論資源配置。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">三個可行的行動方向</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">A) 先補「最急的落差」</div>
+            <div class="card-body">
+              以 deserts 為優先：在落差熱點周邊導入臨時外展、合作據點或移動服務，快速讓民眾有替代入口。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">B) 讓交通更好用</div>
+            <div class="card-body">
+              改善銜接與轉乘體驗（例如站點密度與距離），用較小的基礎建設投入，換取更大的服務覆蓋面。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">C) 讓館點服務更貼近生活</div>
+            <div class="card-body">
+              外展不只是活動，而是建立「日常可達的服務節點」：學校、社區中心、活動中心，讓公共服務更自然地出現在路徑上。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">外展建議（Top 5）</div>
+        <div class="card">
+          <div class="card-body">
+            這份清單是「候選點位」；建議搭配現場條件（可用空間、合作意願、服務時段）做最後篩選。
+          </div>
+          <div id="topOutreach" class="brief-list muted">載入中…</div>
+          <div class="card-foot">
+            <a class="btn subtle" href="/console">到控制台看完整清單與參數</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">如何閱讀（給非技術同仁）</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">可達性分數</div>
+            <div class="card-body">0–100。可理解成「在合理步行範圍內，公共運輸是否充足、抵達是否容易」。</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Deserts</div>
+            <div class="card-body">格網單元的服務落差提示。用來找「可能需要補強」的生活圈，不代表居民不使用圖書館。</div>
+          </div>
+          <div class="card">
+            <div class="card-title">外展建議</div>
+            <div class="card-body">綜合「能覆蓋 deserts」與「場址本身的可達性」的排序。用來啟動跨局處/場域合作討論。</div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="home-footer">
+        <div class="footer-inner">
+          <div class="muted">LibraryReach · Brief view</div>
+          <div class="footer-actions">
+            <a class="btn subtle" href="/">主頁</a>
+            <a class="btn subtle" href="/console">控制台</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <script src="/static/preset.js"></script>
+    <script src="/static/narrative.js"></script>
+    <script src="/static/brief.js"></script>
+  </body>
+</html>

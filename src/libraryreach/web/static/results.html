@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LibraryReach · 成果頁</title>
+    <meta name="description" content="LibraryReach 成果頁：用 2–3 張關鍵圖快速溝通可達性、服務落差與外展建議。" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="home results">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-text">
+            <div class="brand-title">LibraryReach</div>
+            <div class="brand-subtitle">成果頁（投影簡報）</div>
+          </div>
+        </a>
+        <nav class="tabs" aria-label="Primary">
+          <a class="tab" href="/">主頁</a>
+          <a class="tab active" href="/results">成果頁</a>
+          <a class="tab" href="/brief">一頁簡報</a>
+          <a class="tab" href="/console">控制台</a>
+        </nav>
+        <div class="topbar-actions">
+          <button id="themeToggle" class="btn subtle" type="button" aria-pressed="false" title="Toggle theme">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="home-main">
+      <section class="section">
+        <div class="section-title">成果摘要</div>
+        <div class="callout">
+          <div class="callout-title">一眼看懂：可達性、落差、可行方案</div>
+          <div id="resultsSummary" class="callout-body">
+            載入中…
+          </div>
+          <div id="resultsAudience" class="audience" style="margin-top: 12px">
+            <div class="audience-title">語氣切換</div>
+            <div class="audience-tabs" role="tablist" aria-label="Audience">
+              <button class="audience-tab active" type="button" data-audience="public" role="tab" aria-selected="true">
+                一般民眾
+              </button>
+              <button class="audience-tab" type="button" data-audience="library" role="tab" aria-selected="false">
+                館方/第一線
+              </button>
+              <button class="audience-tab" type="button" data-audience="policy" role="tab" aria-selected="false">
+                決策/跨局處
+              </button>
+            </div>
+          </div>
+          <div id="resultsAssumptions" class="results-assumptions muted"></div>
+          <div id="resultsNarrative" class="brief-impact" style="margin-top: 10px"></div>
+          <div class="callout-actions">
+            <a id="openConsoleFromResults" class="btn primary" href="/console">用同一組假設打開控制台</a>
+            <a id="openBriefFromResults" class="btn" href="/brief">開啟一頁簡報</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">關鍵圖 1：分數分佈</div>
+        <div class="card">
+          <div class="card-body">
+            以三段區間呈現館點可達性分佈（低/中/高）。用於溝通「整體狀況」與「需要補強的比例」。
+          </div>
+          <div class="chart-tools" aria-label="Chart tools">
+            <button class="btn subtle chart-action" type="button" data-action="download" data-chart="chartScore">
+              下載 PNG
+            </button>
+            <button class="btn subtle chart-action" type="button" data-action="copy" data-chart="chartScore">
+              複製圖表
+            </button>
+          </div>
+          <div id="chartScore" class="chart" aria-label="Score distribution chart"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">關鍵圖 2：服務落差（deserts）</div>
+        <div class="card">
+          <div class="card-body">
+            deserts 是落差提示：代表在該格網生活圈內，抵達館點的可達性低於門檻。用於設定優先順序與追蹤改善。
+          </div>
+          <div class="chart-tools" aria-label="Chart tools">
+            <button class="btn subtle chart-action" type="button" data-action="download" data-chart="chartDeserts">
+              下載 PNG
+            </button>
+            <button class="btn subtle chart-action" type="button" data-action="copy" data-chart="chartDeserts">
+              複製圖表
+            </button>
+          </div>
+          <div id="chartDeserts" class="chart" aria-label="Deserts chart"></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">關鍵圖 3：外展建議（Top 10）</div>
+        <div class="card">
+          <div class="card-body">
+            這是候選點位排序（非最終決策）。建議搭配現場條件與合作意願做篩選。
+          </div>
+          <div class="chart-tools" aria-label="Chart tools">
+            <button class="btn subtle chart-action" type="button" data-action="download" data-chart="chartOutreach">
+              下載 PNG
+            </button>
+            <button class="btn subtle chart-action" type="button" data-action="copy" data-chart="chartOutreach">
+              複製圖表
+            </button>
+          </div>
+          <div id="chartOutreach" class="chart" aria-label="Outreach chart"></div>
+          <div class="card-foot">
+            <a class="btn subtle" href="/console">到控制台看完整清單與參數</a>
+          </div>
+        </div>
+      </section>
+
+      <footer class="home-footer">
+        <div class="footer-inner">
+          <div class="muted">LibraryReach · Results view</div>
+          <div class="footer-actions">
+            <a class="btn subtle" href="/">主頁</a>
+            <a class="btn subtle" href="/brief">一頁簡報</a>
+            <a class="btn subtle" href="/console">控制台</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+
+    <script src="/static/preset.js"></script>
+    <script src="/static/narrative.js"></script>
+    <script src="/static/results.js"></script>
+  </body>
+</html>
