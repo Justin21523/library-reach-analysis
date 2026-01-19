@@ -20,12 +20,14 @@ from __future__ import annotations
 
 # `json` is used to write a small machine-readable metadata file next to the CSV.
 import json
+# `logging` provides operator visibility when a TDX endpoint is missing or rate-limited.
+import logging
 # `time` provides a reproducible "generated_at" timestamp for auditing runs.
 import time
 # `Path` is used for safe, cross-platform file writes under the project root.
 from pathlib import Path
 # `Any` is used because TDX JSON payloads are dynamic dictionaries/lists.
-from typing import Any
+from typing import Any, Callable
 
 # pandas is our table engine for writing CSV and for basic cleaning/deduping.
 import pandas as pd
@@ -34,6 +36,8 @@ import pandas as pd
 from libraryreach.cache import DiskCache
 # TDXClient centralizes token handling, caching, and error handling for HTTP calls.
 from libraryreach.ingestion.tdx_client import TDXClient
+from libraryreach.ingestion.sources_index import SourceRecord, sha256_file, upsert_source_record
+from libraryreach.run_meta import config_fingerprint, file_meta, json_hash, new_run_id, utc_now_iso
 
 
 def _pick_name(name_obj: Any) -> str | None:
@@ -100,7 +104,13 @@ def _normalize_metro_station(item: dict[str, Any], operator: str) -> dict[str, A
     }
 
 
-def fetch_and_write_stops(settings: dict[str, Any]) -> Path:
+def fetch_and_write_stops(
+    settings: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    on_retry: Callable[[dict[str, Any]], None] | None = None,
+) -> Path:
+    logger = logging.getLogger("libraryreach")
     # Resolve cache directory from settings so tests can redirect it to a temp folder.
     cache_dir = Path(settings["paths"]["cache_dir"])
     # Read TDX config block (URLs, endpoints, defaults) from YAML-derived settings.
@@ -109,6 +119,11 @@ def fetch_and_write_stops(settings: dict[str, Any]) -> Path:
     cache = DiskCache(cache_dir, default_ttl_s=int(tdx_cfg.get("cache_ttl_s", 86400)))
     # Create the client from environment variables so credentials are never stored in git.
     client = TDXClient.from_env(settings=settings, cache=cache)
+    if on_retry is not None:
+        try:
+            client.on_retry = on_retry  # type: ignore[assignment]
+        except Exception:
+            pass
 
     # Multi-city ingestion is driven by config `aoi.cities`.
     cities: list[str] = list(settings.get("aoi", {}).get("cities", []))
@@ -142,12 +157,23 @@ def fetch_and_write_stops(settings: dict[str, Any]) -> Path:
     metro_endpoint = tdx_cfg["endpoints"].get("metro_stations_by_operator")
     # Operator codes control which metro systems we include (e.g., TRTC, TYMC, KRTC).
     operator_codes: list[str] = list(tdx_cfg.get("metro_operator_codes", []))
-    if metro_endpoint and operator_codes:
+    metro_enabled = bool(tdx_cfg.get("enable_metro", True))
+    skipped_metro_operators: list[str] = []
+    if metro_enabled and metro_endpoint and operator_codes:
         for operator in operator_codes:
             # Render the endpoint path using the operator code.
             path = metro_endpoint.format(operator=operator)
             # Fetch JSON with caching; this endpoint is typically smaller than bus stops.
-            items = client.get_json(path, cache_ttl_s=cache.default_ttl_s)
+            # Some deployments/accounts may not have access to Rail/Metro endpoints; treat 404 as "skip metro".
+            try:
+                items = client.get_json(path, cache_ttl_s=cache.default_ttl_s)
+            except RuntimeError as e:
+                msg = str(e)
+                if " status=404 " in msg or msg.endswith(" status=404"):
+                    logger.warning("TDX metro endpoint not found for operator=%s; skipping metro ingestion", operator)
+                    skipped_metro_operators.append(str(operator))
+                    continue
+                raise
             # Defensive: if the endpoint returns a non-list, we skip to avoid crashing ingestion.
             if not isinstance(items, list):
                 continue
@@ -186,16 +212,63 @@ def fetch_and_write_stops(settings: dict[str, Any]) -> Path:
     # Write as CSV because it is easy to inspect and works well with pandas.
     df.to_csv(out_path, index=False)
 
-    # Store small metadata for auditing and debugging (counts by mode and configured cities).
+    # Store metadata for auditing and debugging (counts by mode and configured cities).
+    rid = str(run_id or new_run_id())
+    generated_at = utc_now_iso()
+    fingerprint = config_fingerprint(settings)
+    config_hash = json_hash(fingerprint)
+
     meta = {
+        "run_id": rid,
+        "generated_at": generated_at,
         "generated_at_epoch_s": int(time.time()),
+        "scenario": (settings.get("_meta", {}) or {}).get("scenario"),
         "cities": cities,
         "counts": df.groupby("mode").size().to_dict(),
         "total": int(len(df)),
+        "config_hash": config_hash,
+        "config_fingerprint": fingerprint,
+        "input_sources": [
+            file_meta(Path(str((settings.get("_meta", {}) or {}).get("config_path") or "config/default.yaml"))).__dict__,
+            file_meta(
+                Path(str((settings.get("_meta", {}) or {}).get("scenario_path") or "config/scenarios/weekday.yaml"))
+            ).__dict__,
+        ],
+        "tdx": {
+            "enable_metro": metro_enabled,
+            "metro_operator_codes": operator_codes,
+            "skipped_metro_operators": skipped_metro_operators,
+            "endpoints": dict(tdx_cfg.get("endpoints", {}) or {}),
+            "cache_ttl_s": int(tdx_cfg.get("cache_ttl_s", 0) or 0),
+            "min_request_interval_s": float(tdx_cfg.get("min_request_interval_s", 0.0) or 0.0),
+            "min_request_interval_token_s": tdx_cfg.get("min_request_interval_token_s"),
+            "min_request_interval_bus_s": tdx_cfg.get("min_request_interval_bus_s"),
+            "min_request_interval_metro_s": tdx_cfg.get("min_request_interval_metro_s"),
+            "max_retries": int(tdx_cfg.get("max_retries", 0) or 0),
+        },
     }
     # Write JSON with UTF-8 so bilingual content stays readable.
     (out_dir / "stops.meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    # Update global sources index for cross-source traceability.
+    upsert_source_record(
+        settings,
+        SourceRecord(
+            source_id="tdx_stops_v1",
+            fetched_at=generated_at,
+            output_path=str(out_path),
+            checksum_sha256=sha256_file(out_path),
+            status="ok",
+            details={
+                "scenario": meta.get("scenario"),
+                "cities": cities,
+                "counts": meta.get("counts"),
+                "tdx": meta.get("tdx"),
+                "inputs": meta.get("input_sources"),
+            },
+        ),
     )
     # Return the path so callers (CLI/pipeline) can log or reuse it.
     return out_path

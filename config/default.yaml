@@ -37,11 +37,26 @@ tdx:
   base_url: https://tdx.transportdata.tw
   token_url: https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token
   request_timeout_s: 30
+  # Rate limiting / retries (for always-on ingestion).
+  # Default throttle for GET requests (seconds between calls).
+  min_request_interval_s: 0.25
+  # Optional per-family throttle overrides (useful when some endpoints are stricter).
+  min_request_interval_token_s: 0.5
+  min_request_interval_bus_s: 0.25
+  min_request_interval_metro_s: 0.25
+  max_retries: 5
+  retry_backoff_initial_s: 1.0
+  retry_backoff_max_s: 30.0
   page_size: 5000
   cache_ttl_s: 86400
+  # Some TDX accounts/environments may not have access to metro endpoints; set false to avoid 404 noise.
+  enable_metro: true
+  # Optional additional layers (off by default; enable when you want richer analysis).
+  enable_youbike: false
   endpoints:
     bus_stops_by_city: /api/basic/v2/Bus/Stop/City/{city}
     metro_stations_by_operator: /api/basic/v2/Rail/Metro/Station/OperatorCode/{operator}
+    bike_stations_by_city: /api/basic/v2/Bike/Station/City/{city}
   metro_operator_codes: [TRTC, TYMC, KRTC]
 
 spatial:
@@ -92,3 +107,21 @@ planning:
 api:
   host: 127.0.0.1
   port: 8000
+
+daemon:
+  # Timezone for daily schedules (default: project.timezone).
+  timezone: Asia/Taipei
+  # Daily ingestion window (local time) to avoid peak-hour rate limits.
+  fetch_window:
+    start: "03:10"
+    end: "03:30"
+  # Pipeline runs right after a successful fetch by default; this window controls "pipeline-only" refreshes.
+  pipeline_window:
+    start: "03:10"
+    end: "03:40"
+  # Randomize start time inside the window (seconds).
+  window_jitter_max_s: 600
+  # Sleep cap between checks outside windows (seconds).
+  poll_max_s: 900
+  # Sleep after unexpected failures (seconds).
+  failure_backoff_s: 300

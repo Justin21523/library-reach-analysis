@@ -21,10 +21,11 @@ import logging
 import os
 # `time` is used for token expiry checks and for computing "expires_at".
 import time
+import random
 # `dataclass` makes the client a small, explicit container for settings and helpers.
 from dataclasses import dataclass
 # `Any` keeps settings and JSON payloads flexible without premature strict typing.
-from typing import Any
+from typing import Any, Callable
 
 # `requests` is a lightweight HTTP client; we use it with explicit timeouts.
 import requests
@@ -63,6 +64,25 @@ class TDXClient:
     cache: DiskCache
     # Per-request timeout to avoid hanging ingestion jobs.
     request_timeout_s: int = 30
+    # Minimum interval between network calls to respect API limits (seconds).
+    min_request_interval_s: float = 0.25
+    # Optional interval overrides by request type.
+    # These let operators throttle token requests and different endpoint families separately.
+    min_request_interval_token_s: float | None = None
+    min_request_interval_bus_s: float | None = None
+    min_request_interval_metro_s: float | None = None
+    # Max retries for transient errors (429/5xx) before failing.
+    max_retries: int = 5
+    # Initial backoff for retries (seconds).
+    retry_backoff_initial_s: float = 1.0
+    # Max backoff between retries (seconds).
+    retry_backoff_max_s: float = 30.0
+    # Optional sleep function injection (tests can stub).
+    sleep_fn: Callable[[float], None] | None = None
+    # Optional callback for retry events (daemon can record rate-limits/backoffs to status files).
+    on_retry: Callable[[dict[str, Any]], None] | None = None
+    # Monotonic timestamp of last network call (for throttling).
+    _last_call_monotonic_s: float = 0.0
     # Optional logger injection for tests or custom logging setups.
     logger: logging.Logger | None = None
     # Optional session injection so tests can stub network calls and prod can reuse connections.
@@ -80,6 +100,31 @@ class TDXClient:
         # Return the (possibly newly created) session for consistent connection reuse.
         return self.session
 
+    def _sleep(self, seconds: float) -> None:
+        (self.sleep_fn or time.sleep)(max(0.0, float(seconds)))
+
+    def _min_interval_for(self, *, url: str, method: str) -> float:
+        # Token endpoint can be rate limited separately.
+        if method.upper() == "POST" and url == self.token_url and self.min_request_interval_token_s is not None:
+            return float(self.min_request_interval_token_s)
+        # Heuristic by URL path (stable enough for current TDX endpoints).
+        if "/Bus/" in url and self.min_request_interval_bus_s is not None:
+            return float(self.min_request_interval_bus_s)
+        if "/Rail/Metro/" in url and self.min_request_interval_metro_s is not None:
+            return float(self.min_request_interval_metro_s)
+        return float(self.min_request_interval_s)
+
+    def _throttle(self, *, min_interval_s: float) -> None:
+        # Use monotonic time so sleeps are stable across clock changes.
+        now = time.monotonic()
+        min_dt = float(min_interval_s)
+        if min_dt <= 0:
+            return
+        dt = now - float(self._last_call_monotonic_s)
+        if dt < min_dt:
+            self._sleep(min_dt - dt)
+        self._last_call_monotonic_s = time.monotonic()
+
     @classmethod
     def from_env(cls, *, settings: dict[str, Any], cache: DiskCache) -> "TDXClient":
         # Read credentials from env vars so we do not store secrets in config files.
@@ -93,6 +138,13 @@ class TDXClient:
         # `settings["tdx"]` contains endpoints and defaults like timeout and base_url.
         tdx = settings["tdx"]
         # Construct a client with normalized base_url so `_build_url` is deterministic.
+        min_interval = float(tdx.get("min_request_interval_s", 0.25))
+        min_interval_token = tdx.get("min_request_interval_token_s")
+        min_interval_bus = tdx.get("min_request_interval_bus_s")
+        min_interval_metro = tdx.get("min_request_interval_metro_s")
+        max_retries = int(tdx.get("max_retries", 5))
+        backoff_initial = float(tdx.get("retry_backoff_initial_s", 1.0))
+        backoff_max = float(tdx.get("retry_backoff_max_s", 30.0))
         return cls(
             client_id=client_id,
             client_secret=client_secret,
@@ -100,6 +152,13 @@ class TDXClient:
             token_url=str(tdx["token_url"]),
             cache=cache,
             request_timeout_s=int(tdx.get("request_timeout_s", 30)),
+            min_request_interval_s=min_interval,
+            min_request_interval_token_s=float(min_interval_token) if min_interval_token is not None else None,
+            min_request_interval_bus_s=float(min_interval_bus) if min_interval_bus is not None else None,
+            min_request_interval_metro_s=float(min_interval_metro) if min_interval_metro is not None else None,
+            max_retries=max_retries,
+            retry_backoff_initial_s=backoff_initial,
+            retry_backoff_max_s=backoff_max,
             logger=logging.getLogger("libraryreach"),
         )
 
@@ -122,20 +181,67 @@ class TDXClient:
 
         # If the cache is missing/expired, we request a new token from the OAuth endpoint.
         self._log().info("Requesting new TDX token")
-        try:
-            resp = self._http().post(
-                self.token_url,
-                data={
-                    # TDX uses standard OAuth2 client credentials flow.
-                    "grant_type": "client_credentials",
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                },
-                timeout=self.request_timeout_s,
-            )
-        except requests.RequestException as e:
-            # Network errors are surfaced as auth errors because token acquisition is a prerequisite.
-            raise TDXAuthError(f"Failed to request TDX token: {e}") from e
+        resp: requests.Response | None = None
+        last_exc: Exception | None = None
+        for attempt in range(int(self.max_retries) + 1):
+            try:
+                self._throttle(min_interval_s=self._min_interval_for(url=self.token_url, method="POST"))
+                resp = self._http().post(
+                    self.token_url,
+                    data={
+                        # TDX uses standard OAuth2 client credentials flow.
+                        "grant_type": "client_credentials",
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                    },
+                    timeout=self.request_timeout_s,
+                )
+            except requests.RequestException as e:
+                last_exc = e
+                break
+
+            if resp.status_code in {429, 502, 503, 504} and attempt < int(self.max_retries):
+                retry_after = resp.headers.get("Retry-After") if hasattr(resp, "headers") else None
+                sleep_s = None
+                if retry_after:
+                    try:
+                        sleep_s = float(retry_after)
+                    except ValueError:
+                        sleep_s = None
+                if sleep_s is None:
+                    base = float(self.retry_backoff_initial_s) * (2 ** attempt)
+                    sleep_s = min(float(self.retry_backoff_max_s), base) + random.uniform(0, 0.25)
+                if self.on_retry is not None:
+                    try:
+                        self.on_retry(
+                            {
+                                "ts_epoch_s": int(time.time()),
+                                "url": self.token_url,
+                                "method": "POST",
+                                "status_code": int(resp.status_code),
+                                "attempt": int(attempt + 1),
+                                "max_retries": int(self.max_retries),
+                                "retry_after": str(retry_after) if retry_after else None,
+                                "sleep_s": float(sleep_s),
+                            }
+                        )
+                    except Exception:
+                        pass
+                self._log().warning(
+                    "TDX transient error %s (token), retrying in %.2fs (attempt %s/%s)",
+                    resp.status_code,
+                    sleep_s,
+                    attempt + 1,
+                    self.max_retries,
+                )
+                self._sleep(sleep_s)
+                continue
+            break
+
+        if resp is None:
+            if last_exc is not None:
+                raise TDXAuthError(f"Failed to request TDX token: {last_exc}") from last_exc
+            raise TDXAuthError("Failed to request TDX token: no response")
 
         try:
             # `raise_for_status` converts non-2xx into a clear exception with status code.
@@ -197,40 +303,73 @@ class TDXClient:
 
         # Acquire an access token right before the request so it is fresh enough for the call.
         token = self.get_access_token()
-        # Build headers explicitly; `Authorization` is the standard bearer token header name.
-        headers = {
-            "Authorization": f"Bearer {token}",
-            # Accept JSON so proxies and servers know what we expect.
-            "Accept": "application/json",
-        }
-        # GET requests are safe to retry with a refreshed token if we receive a 401.
-        resp = self._http().get(
-            url,
-            params=params,
-            headers=headers,
-            timeout=self.request_timeout_s,
-        )
-        if resp.status_code == 401:
-            # A 401 usually means the token expired or was revoked; refresh once and retry.
-            self._log().warning("TDX returned 401, refreshing token")
-            # Mark the cached token as expired so `get_access_token` will fetch a new one.
-            self.cache.set_json("tdx", self._token_cache_key(), {"expires_at": 0})
-            token = self.get_access_token()
-            headers["Authorization"] = f"Bearer {token}"
-            resp = self._http().get(
-                url,
-                params=params,
-                headers=headers,
-                timeout=self.request_timeout_s,
-            )
-        # Raise on non-2xx so callers do not accidentally treat error payloads as data.
-        try:
-            resp.raise_for_status()
-        except requests.HTTPError as e:
-            # Include a snippet of the body to help debugging request parameters and endpoint changes.
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+        def do_get() -> requests.Response:
+            self._throttle(min_interval_s=self._min_interval_for(url=url, method="GET"))
+            return self._http().get(url, params=params, headers=headers, timeout=self.request_timeout_s)
+
+        # Retry transient errors with backoff, respecting Retry-After on 429 when present.
+        last_error: Exception | None = None
+        resp: requests.Response | None = None
+        for attempt in range(int(self.max_retries) + 1):
+            resp = do_get()
+
+            if resp.status_code == 401:
+                # A 401 usually means the token expired or was revoked; refresh once and retry immediately.
+                self._log().warning("TDX returned 401, refreshing token")
+                self.cache.set_json("tdx", self._token_cache_key(), {"expires_at": 0})
+                token = self.get_access_token()
+                headers["Authorization"] = f"Bearer {token}"
+                resp = do_get()
+
+            if resp.status_code in {429, 502, 503, 504} and attempt < int(self.max_retries):
+                retry_after = resp.headers.get("Retry-After") if hasattr(resp, "headers") else None
+                sleep_s = None
+                if retry_after:
+                    try:
+                        sleep_s = float(retry_after)
+                    except ValueError:
+                        sleep_s = None
+                if sleep_s is None:
+                    base = float(self.retry_backoff_initial_s) * (2 ** attempt)
+                    # Add a small jitter to avoid herd effects when multiple containers restart.
+                    sleep_s = min(float(self.retry_backoff_max_s), base) + random.uniform(0, 0.25)
+                if self.on_retry is not None:
+                    try:
+                        self.on_retry(
+                            {
+                                "ts_epoch_s": int(time.time()),
+                                "url": url,
+                                "method": "GET",
+                                "status_code": int(resp.status_code),
+                                "attempt": int(attempt + 1),
+                                "max_retries": int(self.max_retries),
+                                "retry_after": str(retry_after) if retry_after else None,
+                                "sleep_s": float(sleep_s),
+                            }
+                        )
+                    except Exception:
+                        # Callback failures should not break ingestion.
+                        pass
+                self._log().warning("TDX transient error %s, retrying in %.2fs (attempt %s/%s)", resp.status_code, sleep_s, attempt + 1, self.max_retries)
+                self._sleep(sleep_s)
+                continue
+
+            try:
+                resp.raise_for_status()
+                break
+            except requests.HTTPError as e:
+                last_error = e
+                break
+
+        if resp is None:
+            raise RuntimeError("TDX GET failed: no response")
+        if last_error is not None:
             raise RuntimeError(
                 f"TDX GET failed: url={url} status={resp.status_code} body={_safe_response_text(resp)}"
-            ) from e
+            ) from last_error
+
         # Parse JSON; most TDX endpoints return either a list or a dict depending on endpoint.
         data = resp.json()
         if cache_ttl_s is not None:

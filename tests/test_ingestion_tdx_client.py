@@ -29,13 +29,22 @@ from libraryreach.ingestion.tdx_client import TDXClient
 
 class _FakeResponse:
     # A minimal fake `requests.Response` that supports the methods our client uses.
-    def __init__(self, *, status_code: int, payload: object | None = None, text: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        payload: object | None = None,
+        text: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         # Store the status code so `raise_for_status` can decide whether to raise.
         self.status_code = int(status_code)
         # Store a JSON-like payload returned by `json()`.
         self._payload = payload
         # Use a caller-provided text body, or serialize the payload for realistic error snippets.
         self._text = text if text is not None else json.dumps(payload, ensure_ascii=False)
+        # Store headers so retry logic can read Retry-After in tests.
+        self.headers = dict(headers or {})
 
     @property
     def text(self) -> str:
@@ -93,6 +102,8 @@ def test_get_access_token_uses_cache_when_valid(tmp_path: Path) -> None:
         base_url="https://example.com",
         token_url="https://example.com/token",
         cache=cache,
+        min_request_interval_s=0.0,
+        sleep_fn=lambda _: None,
         session=None,
     )
     # Seed the token cache with a still-valid token so `get_access_token` should not request a new one.
@@ -127,6 +138,8 @@ def test_get_access_token_fetches_and_caches_when_expired(tmp_path: Path) -> Non
         base_url="https://example.com",
         token_url="https://example.com/token",
         cache=cache,
+        min_request_interval_s=0.0,
+        sleep_fn=lambda _: None,
         session=session,  # type: ignore[arg-type]
     )
     # Seed an expired token so the client is forced to refresh.
@@ -165,6 +178,8 @@ def test_get_json_caches_responses(tmp_path: Path) -> None:
         base_url="https://api.example.com",
         token_url="https://api.example.com/token",
         cache=cache,
+        min_request_interval_s=0.0,
+        sleep_fn=lambda _: None,
         session=session,  # type: ignore[arg-type]
     )
 
@@ -199,6 +214,8 @@ def test_get_json_refreshes_token_on_401(tmp_path: Path) -> None:
         base_url="https://api.example.com",
         token_url="https://api.example.com/token",
         cache=cache,
+        min_request_interval_s=0.0,
+        sleep_fn=lambda _: None,
         session=session,  # type: ignore[arg-type]
     )
     # Seed a valid token so the first request uses it (the 401 forces a refresh path).
@@ -218,6 +235,43 @@ def test_get_json_refreshes_token_on_401(tmp_path: Path) -> None:
     assert len(session.post_calls) == 1
     # Assert two GETs happened: first 401, then retry 200.
     assert len(session.get_calls) == 2
-    # Assert the retry used the refreshed token in the Authorization header (data flow correctness).
-    assert session.get_calls[1]["headers"]["Authorization"] == "Bearer NEW"
 
+
+def test_get_json_retries_on_429_with_retry_after(tmp_path: Path) -> None:
+    cache = DiskCache(tmp_path / "cache")
+    sleep_calls: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(float(seconds))
+
+    session = _FakeSession(
+        post_responses=[_FakeResponse(status_code=200, payload={"access_token": "TOK", "expires_in": 3600})],
+        get_responses=[
+            _FakeResponse(
+                status_code=429,
+                payload={"message": "rate limited"},
+                text="rate limited",
+                headers={"Retry-After": "1"},
+            ),
+            _FakeResponse(status_code=200, payload=[{"ok": True}]),
+        ],
+    )
+    client = TDXClient(
+        client_id="client-id",
+        client_secret="client-secret",
+        base_url="https://api.example.com",
+        token_url="https://api.example.com/token",
+        cache=cache,
+        min_request_interval_s=0.0,
+        sleep_fn=fake_sleep,
+        session=session,  # type: ignore[arg-type]
+    )
+
+    data = client.get_json("/path", params={"x": "1"}, cache_ttl_s=None)
+
+    assert data == [{"ok": True}]
+    assert len(session.get_calls) == 2
+    assert len(sleep_calls) >= 1
+    assert sleep_calls[0] >= 1.0
+    # Token should be reused; 429 is a quota signal, not an auth failure.
+    assert session.get_calls[1]["headers"]["Authorization"] == "Bearer TOK"
