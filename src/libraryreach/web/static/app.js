@@ -15,6 +15,20 @@ const STYLE = {
   layers: [{ id: "osm", type: "raster", source: "osm" }],
 };
 
+function cssVar(name, fallback = "") {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    const s = String(v || "").trim();
+    return s || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function mapColor(tokenName, fallback) {
+  return cssVar(tokenName, fallback);
+}
+
 const LAYER_REGISTRY = [
   {
     key: "libraries",
@@ -41,15 +55,15 @@ const LAYER_REGISTRY = [
             ["linear"],
             ["coalesce", ["get", "accessibility_score"], 0],
             0,
-            "#ef4444",
+            mapColor("--map-score-low", "#d55e00"),
             50,
-            "#f59e0b",
+            mapColor("--map-score-mid", "#e69f00"),
             100,
-            "#22c55e",
+            mapColor("--map-score-high", "#009e73"),
           ],
           "circle-opacity": 0.72,
           "circle-stroke-width": 2,
-          "circle-stroke-color": "rgba(15,23,42,0.9)",
+          "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
         },
       });
     },
@@ -88,7 +102,7 @@ const LAYER_REGISTRY = [
         filter: ["==", ["get", "is_desert"], true],
         paint: {
           "circle-radius": 3,
-          "circle-color": "rgba(239,68,68,0.65)",
+          "circle-color": mapColor("--map-desert", "rgba(225,29,72,0.65)"),
           "circle-opacity": 0.45,
         },
       });
@@ -128,9 +142,9 @@ const LAYER_REGISTRY = [
         source: "outreach",
         paint: {
           "circle-radius": 7,
-          "circle-color": "rgba(96,165,250,0.75)",
+          "circle-color": mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
           "circle-stroke-width": 1.5,
-          "circle-stroke-color": "rgba(15,23,42,0.9)",
+          "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
         },
       });
     },
@@ -168,10 +182,10 @@ const LAYER_REGISTRY = [
         source: "stops_metro",
         paint: {
           "circle-radius": 6,
-          "circle-color": "rgba(167, 139, 250, 0.9)",
+          "circle-color": mapColor("--map-metro", "rgba(124, 58, 237, 0.9)"),
           "circle-opacity": 0.78,
           "circle-stroke-width": 2,
-          "circle-stroke-color": "rgba(15,23,42,0.9)",
+          "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
         },
       });
       map.addLayer({
@@ -188,8 +202,8 @@ const LAYER_REGISTRY = [
           "text-ignore-placement": false,
         },
         paint: {
-          "text-color": "rgba(15,23,42,0.92)",
-          "text-halo-color": "rgba(255,255,255,0.92)",
+          "text-color": mapColor("--map-label", "rgba(15,23,42,0.92)"),
+          "text-halo-color": mapColor("--map-label-halo", "rgba(255,255,255,0.92)"),
           "text-halo-width": 1.2,
         },
       });
@@ -228,10 +242,10 @@ const LAYER_REGISTRY = [
         source: "youbike",
         paint: {
           "circle-radius": 5,
-          "circle-color": "rgba(20, 184, 166, 0.9)",
+          "circle-color": mapColor("--map-youbike", "rgba(15, 118, 110, 0.9)"),
           "circle-opacity": 0.7,
           "circle-stroke-width": 2,
-          "circle-stroke-color": "rgba(15,23,42,0.9)",
+          "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
         },
       });
       map.addLayer({
@@ -248,8 +262,8 @@ const LAYER_REGISTRY = [
           "text-ignore-placement": false,
         },
         paint: {
-          "text-color": "rgba(15,23,42,0.92)",
-          "text-halo-color": "rgba(255,255,255,0.92)",
+          "text-color": mapColor("--map-label", "rgba(15,23,42,0.92)"),
+          "text-halo-color": mapColor("--map-label-halo", "rgba(255,255,255,0.92)"),
           "text-halo-width": 1.2,
         },
       });
@@ -317,13 +331,48 @@ function applyTheme(theme) {
 function applyMapTheme(theme) {
   const map = state.map;
   if (!map) return;
-  const dark = theme === "dark";
-  const labelColor = dark ? "rgba(229,231,235,0.92)" : "rgba(15,23,42,0.92)";
-  const haloColor = dark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.92)";
+  const labelColor = mapColor("--map-label", "rgba(15,23,42,0.92)");
+  const haloColor = mapColor("--map-label-halo", "rgba(255,255,255,0.92)");
   for (const id of ["stops-metro-label", "youbike-label"]) {
     if (!map.getLayer(id)) continue;
     map.setPaintProperty(id, "text-color", labelColor);
     map.setPaintProperty(id, "text-halo-color", haloColor);
+  }
+
+  const stroke = mapColor("--map-stroke", "rgba(15,23,42,0.9)");
+
+  if (map.getLayer("libraries")) {
+    map.setPaintProperty("libraries", "circle-color", [
+      "interpolate",
+      ["linear"],
+      ["coalesce", ["get", "accessibility_score"], 0],
+      0,
+      mapColor("--map-score-low", "#d55e00"),
+      50,
+      mapColor("--map-score-mid", "#e69f00"),
+      100,
+      mapColor("--map-score-high", "#009e73"),
+    ]);
+    map.setPaintProperty("libraries", "circle-stroke-color", stroke);
+  }
+
+  if (map.getLayer("deserts")) {
+    map.setPaintProperty("deserts", "circle-color", mapColor("--map-desert", "rgba(225,29,72,0.65)"));
+  }
+
+  if (map.getLayer("outreach")) {
+    map.setPaintProperty("outreach", "circle-color", mapColor("--map-outreach", "rgba(0,114,178,0.75)"));
+    map.setPaintProperty("outreach", "circle-stroke-color", stroke);
+  }
+
+  if (map.getLayer("stops-metro")) {
+    map.setPaintProperty("stops-metro", "circle-color", mapColor("--map-metro", "rgba(124,58,237,0.9)"));
+    map.setPaintProperty("stops-metro", "circle-stroke-color", stroke);
+  }
+
+  if (map.getLayer("youbike")) {
+    map.setPaintProperty("youbike", "circle-color", mapColor("--map-youbike", "rgba(15,118,110,0.9)"));
+    map.setPaintProperty("youbike", "circle-stroke-color", stroke);
   }
 }
 
@@ -945,7 +994,11 @@ async function refreshHealthUi() {
 function renderInspectorLibrary(lib) {
   const score = Number(lib.accessibility_score) || 0;
   const badgeColor =
-    score >= 70 ? "rgba(34,197,94,0.35)" : score >= 40 ? "rgba(245,158,11,0.35)" : "rgba(239,68,68,0.35)";
+    score >= 70
+      ? "rgba(0,158,115,0.18)"
+      : score >= 40
+        ? "rgba(230,159,0,0.18)"
+        : "rgba(213,94,0,0.18)";
   const explainText = lib.accessibility_explain ?? lib.explain_text ?? "-";
   el("inspector").innerHTML = `
     <div class="kv">
@@ -1004,16 +1057,16 @@ function initHighlightLayers(map) {
         "match",
         ["get", "kind"],
         "low_library_score",
-        "rgba(239,68,68,0.45)",
+        "rgba(213,94,0,0.4)",
         "high_desert_gap",
-        "rgba(245,158,11,0.45)",
+        "rgba(230,159,0,0.35)",
         "top_outreach",
-        "rgba(37,99,235,0.35)",
-        "rgba(37,99,235,0.35)",
+        "rgba(0,114,178,0.25)",
+        "rgba(0,114,178,0.25)",
       ],
       "circle-opacity": 1,
       "circle-stroke-width": 2,
-      "circle-stroke-color": "rgba(15,23,42,0.9)",
+      "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
     },
   });
   map.addLayer({
@@ -1026,16 +1079,16 @@ function initHighlightLayers(map) {
         "match",
         ["get", "kind"],
         "low_library_score",
-        "rgba(239,68,68,0.85)",
+        mapColor("--map-score-low", "#d55e00"),
         "high_desert_gap",
-        "rgba(245,158,11,0.85)",
+        mapColor("--map-score-mid", "#e69f00"),
         "top_outreach",
-        "rgba(37,99,235,0.75)",
-        "rgba(37,99,235,0.75)",
+        mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
+        mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
       ],
       "circle-opacity": 0.95,
       "circle-stroke-width": 2,
-      "circle-stroke-color": "rgba(15,23,42,0.9)",
+      "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
     },
   });
 }
@@ -1506,7 +1559,7 @@ function initMap() {
       type: "line",
       source: "metro_links",
       paint: {
-        "line-color": "rgba(59, 130, 246, 0.65)",
+        "line-color": "rgba(0,114,178,0.5)",
         "line-width": 2,
         "line-opacity": 0.8,
       },
@@ -1523,15 +1576,15 @@ function initMap() {
           ["linear"],
           ["coalesce", ["get", "dist_m"], 0],
           0,
-          "rgba(34,197,94,0.9)",
+          "rgba(0,158,115,0.9)",
           400,
-          "rgba(245,158,11,0.9)",
+          "rgba(230,159,0,0.9)",
           900,
-          "rgba(239,68,68,0.9)",
+          "rgba(213,94,0,0.9)",
         ],
         "circle-opacity": 0.9,
         "circle-stroke-width": 2,
-        "circle-stroke-color": "rgba(15,23,42,0.9)",
+        "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
       },
     });
 
@@ -1541,9 +1594,9 @@ function initMap() {
       source: "selection",
       paint: {
         "circle-radius": 18,
-        "circle-color": "rgba(59, 130, 246, 0.18)",
+        "circle-color": "rgba(0,114,178,0.16)",
         "circle-stroke-width": 2,
-        "circle-stroke-color": "rgba(59, 130, 246, 0.75)",
+        "circle-stroke-color": "rgba(0,114,178,0.7)",
       },
     });
 
@@ -1553,9 +1606,9 @@ function initMap() {
       source: "selection",
       paint: {
         "circle-radius": 8,
-        "circle-color": "rgba(59, 130, 246, 0.75)",
+        "circle-color": "rgba(0,114,178,0.7)",
         "circle-stroke-width": 2,
-        "circle-stroke-color": "rgba(15,23,42,0.9)",
+        "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
       },
     });
 
