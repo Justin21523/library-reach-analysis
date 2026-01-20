@@ -15,6 +15,139 @@ const STYLE = {
   layers: [{ id: "osm", type: "raster", source: "osm" }],
 };
 
+const LAYER_REGISTRY = [
+  {
+    key: "libraries",
+    label: "Libraries",
+    checkboxId: "layerLibraries",
+    sourceId: "libraries",
+    layerId: "libraries",
+    renderOrder: 30,
+    shortcut: "L",
+    cursor: "pointer",
+    addSource(map) {
+      map.addSource("libraries", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    },
+    addLayer(map) {
+      map.addLayer({
+        id: "libraries",
+        type: "circle",
+        source: "libraries",
+        paint: {
+          "circle-radius": 7,
+          "circle-color": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "accessibility_score"], 0],
+            0,
+            "#ef4444",
+            50,
+            "#f59e0b",
+            100,
+            "#22c55e",
+          ],
+          "circle-opacity": 0.72,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "rgba(15,23,42,0.9)",
+        },
+      });
+    },
+    tooltip({ props, fmt, escapeHtml }) {
+      const name = props.name ?? props.id ?? "Library";
+      const city = props.city ?? "-";
+      const district = props.district ?? "-";
+      const score = props.accessibility_score;
+      return `
+        <div class="popup-title">${escapeHtml(name)}</div>
+        <div class="popup-subtitle">${escapeHtml(city)} · ${escapeHtml(district)}</div>
+        <div class="popup-grid">
+          <div class="k">Access score</div><div><b>${fmt(score, 1)}</b></div>
+        </div>
+      `;
+    },
+  },
+  {
+    key: "deserts",
+    label: "Deserts",
+    checkboxId: "layerDeserts",
+    sourceId: "deserts",
+    layerId: "deserts",
+    renderOrder: 10,
+    shortcut: "D",
+    cursor: "help",
+    addSource(map) {
+      map.addSource("deserts", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    },
+    addLayer(map) {
+      map.addLayer({
+        id: "deserts",
+        type: "circle",
+        source: "deserts",
+        filter: ["==", ["get", "is_desert"], true],
+        paint: {
+          "circle-radius": 3,
+          "circle-color": "rgba(239,68,68,0.65)",
+          "circle-opacity": 0.45,
+        },
+      });
+    },
+    tooltip({ props, fmt, escapeHtml }) {
+      const city = props.city ?? "-";
+      const eff = props.effective_score_0_100 ?? props.effective_score ?? null;
+      const gap = props.gap_to_threshold ?? null;
+      const dist = props.best_library_distance_m ?? null;
+      return `
+        <div class="popup-title">${escapeHtml(city)} · Desert cell</div>
+        <div class="popup-grid">
+          <div class="k">Effective score</div><div><b>${fmt(eff, 1)}</b></div>
+          <div class="k">Gap</div><div>${fmt(gap, 1)}</div>
+          <div class="k">Best distance</div><div>${fmt(dist, 0)} m</div>
+        </div>
+      `;
+    },
+  },
+  {
+    key: "outreach",
+    label: "Outreach",
+    checkboxId: "layerOutreach",
+    sourceId: "outreach",
+    layerId: "outreach",
+    renderOrder: 20,
+    shortcut: "O",
+    cursor: "pointer",
+    addSource(map) {
+      map.addSource("outreach", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    },
+    addLayer(map) {
+      map.addLayer({
+        id: "outreach",
+        type: "circle",
+        source: "outreach",
+        paint: {
+          "circle-radius": 7,
+          "circle-color": "rgba(96,165,250,0.75)",
+          "circle-stroke-width": 1.5,
+          "circle-stroke-color": "rgba(15,23,42,0.9)",
+        },
+      });
+    },
+    tooltip({ props, fmt, escapeHtml }) {
+      const name = props.name ?? props.id ?? "Outreach site";
+      const city = props.city ?? "-";
+      const district = props.district ?? "-";
+      const score = props.outreach_score;
+      return `
+        <div class="popup-title">${escapeHtml(name)}</div>
+        <div class="popup-subtitle">${escapeHtml(city)} · ${escapeHtml(district)}</div>
+        <div class="popup-grid">
+          <div class="k">Outreach score</div><div><b>${fmt(score, 1)}</b></div>
+        </div>
+      `;
+    },
+  },
+  // Future layers can be added here (youbike, population, etc.).
+];
+
 const state = {
   map: null,
   mapReady: null,
@@ -66,6 +199,7 @@ function initTheme() {
 }
 
 async function fetchJson(path, options = {}) {
+  if (window.lrApi?.fetchJson) return window.lrApi.fetchJson(path, options);
   const res = await fetch(path, options);
   if (!res.ok) {
     const text = await res.text();
@@ -568,9 +702,9 @@ function setLayerVisibility(layerId, visible) {
 }
 
 function updateLayerToggles() {
-  setLayerVisibility("libraries", state.layers.libraries);
-  setLayerVisibility("deserts", state.layers.deserts);
-  setLayerVisibility("outreach", state.layers.outreach);
+  for (const l of LAYER_REGISTRY) {
+    setLayerVisibility(l.layerId, Boolean(state.layers?.[l.key]));
+  }
   state.hoverPopup?.remove();
 }
 
@@ -791,6 +925,14 @@ async function validateCatalogs() {
 }
 
 function initKeybindings() {
+  function toggleLayerByKey(key) {
+    state.layers[key] = !state.layers[key];
+    const entry = LAYER_REGISTRY.find((x) => x.key === key);
+    const checkbox = entry ? el(entry.checkboxId) : null;
+    if (checkbox) checkbox.checked = Boolean(state.layers[key]);
+    updateLayerToggles();
+  }
+
   window.addEventListener("keydown", (e) => {
     if (shouldIgnoreKeyEvent(e)) return;
 
@@ -815,24 +957,9 @@ function initKeybindings() {
       return;
     }
 
-    if (e.key === "l" || e.key === "L") {
-      state.layers.libraries = !state.layers.libraries;
-      el("layerLibraries").checked = state.layers.libraries;
-      updateLayerToggles();
-      return;
-    }
-    if (e.key === "d" || e.key === "D") {
-      state.layers.deserts = !state.layers.deserts;
-      el("layerDeserts").checked = state.layers.deserts;
-      updateLayerToggles();
-      return;
-    }
-    if (e.key === "o" || e.key === "O") {
-      state.layers.outreach = !state.layers.outreach;
-      el("layerOutreach").checked = state.layers.outreach;
-      updateLayerToggles();
-      return;
-    }
+    if (e.key === "l" || e.key === "L") return toggleLayerByKey("libraries");
+    if (e.key === "d" || e.key === "D") return toggleLayerByKey("deserts");
+    if (e.key === "o" || e.key === "O") return toggleLayerByKey("outreach");
 
     if (e.key === "0") {
       state.map?.easeTo({ bearing: 0, pitch: 0, duration: 120 });
@@ -910,18 +1037,13 @@ function initUIHandlers() {
     }
   });
 
-  el("layerLibraries").addEventListener("change", (e) => {
-    state.layers.libraries = Boolean(e.target.checked);
-    updateLayerToggles();
-  });
-  el("layerDeserts").addEventListener("change", (e) => {
-    state.layers.deserts = Boolean(e.target.checked);
-    updateLayerToggles();
-  });
-  el("layerOutreach").addEventListener("change", (e) => {
-    state.layers.outreach = Boolean(e.target.checked);
-    updateLayerToggles();
-  });
+  for (const l of LAYER_REGISTRY) {
+    const node = el(l.checkboxId);
+    node?.addEventListener("change", (e) => {
+      state.layers[l.key] = Boolean(e.target.checked);
+      updateLayerToggles();
+    });
+  }
 }
 
 function initMap() {
@@ -941,56 +1063,8 @@ function initMap() {
   state.map = map;
 
   map.on("load", () => {
-    map.addSource("libraries", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    map.addSource("deserts", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    map.addSource("outreach", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-
-    map.addLayer({
-      id: "deserts",
-      type: "circle",
-      source: "deserts",
-      filter: ["==", ["get", "is_desert"], true],
-      paint: {
-        "circle-radius": 3,
-        "circle-color": "rgba(239,68,68,0.65)",
-        "circle-opacity": 0.45,
-      },
-    });
-
-    map.addLayer({
-      id: "outreach",
-      type: "circle",
-      source: "outreach",
-      paint: {
-        "circle-radius": 7,
-        "circle-color": "rgba(96,165,250,0.75)",
-        "circle-stroke-width": 1.5,
-        "circle-stroke-color": "rgba(15,23,42,0.9)",
-      },
-    });
-
-    map.addLayer({
-      id: "libraries",
-      type: "circle",
-      source: "libraries",
-      paint: {
-        "circle-radius": 7,
-        "circle-color": [
-          "interpolate",
-          ["linear"],
-          ["coalesce", ["get", "accessibility_score"], 0],
-          0,
-          "#ef4444",
-          50,
-          "#f59e0b",
-          100,
-          "#22c55e",
-        ],
-        "circle-opacity": 0.72,
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "rgba(15,23,42,0.9)",
-      },
-    });
+    for (const l of LAYER_REGISTRY) l.addSource(map);
+    for (const l of [...LAYER_REGISTRY].sort((a, b) => (a.renderOrder ?? 0) - (b.renderOrder ?? 0))) l.addLayer(map);
 
     const hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
     state.hoverPopup = hoverPopup;
@@ -1003,16 +1077,6 @@ function initMap() {
       hoverPopup.remove();
     }
 
-    function scoreBucket(score) {
-      const s = Number(score);
-      if (!Number.isFinite(s)) return "—";
-      if (s < 40) return "Low (0–40)";
-      if (s < 70) return "Medium (40–70)";
-      return "High (70–100)";
-    }
-
-    map.on("mouseenter", "libraries", () => (map.getCanvas().style.cursor = "pointer"));
-    map.on("mouseleave", "libraries", () => (map.getCanvas().style.cursor = ""));
     map.on("click", "libraries", async (e) => {
       const f = e.features?.[0];
       if (!f) return;
@@ -1036,76 +1100,21 @@ function initMap() {
       }
     });
 
-    map.on("mousemove", "libraries", (e) => {
-      const f = e.features?.[0];
-      const props = f?.properties || {};
-      const name = props.name ?? "Library";
-      const city = props.city ?? "-";
-      const district = props.district ?? "-";
-      const score = Number(props.accessibility_score);
-      const html = `
-        <div class="popup-title">${escapeHtml(name)}</div>
-        <div class="popup-subtitle">${escapeHtml(city)} · ${escapeHtml(district)}</div>
-        <div class="popup-grid">
-          <div class="k">Score</div><div><b>${fmt(score, 1)}</b> · ${escapeHtml(scoreBucket(score))}</div>
-        </div>
-      `;
-      map.getCanvas().style.cursor = "pointer";
-      showPopup(e.lngLat, html);
-    });
+    for (const l of LAYER_REGISTRY) {
+      map.on("mousemove", l.layerId, (e) => {
+        const f = e.features?.[0];
+        const props = f?.properties || {};
+        const html = l.tooltip ? l.tooltip({ props, fmt, escapeHtml }) : "";
+        if (!html) return;
+        map.getCanvas().style.cursor = l.cursor || "pointer";
+        showPopup(e.lngLat, html);
+      });
 
-    map.on("mouseleave", "libraries", () => {
-      hidePopup();
-      map.getCanvas().style.cursor = "";
-    });
-
-    map.on("mousemove", "deserts", (e) => {
-      const f = e.features?.[0];
-      const props = f?.properties || {};
-      const city = props.city ?? "-";
-      const eff = props.effective_score_0_100;
-      const gap = props.gap_to_threshold;
-      const dist = props.best_library_distance_m;
-      const html = `
-        <div class="popup-title">Access desert cell</div>
-        <div class="popup-subtitle">${escapeHtml(city)}</div>
-        <div class="popup-grid">
-          <div class="k">Effective score</div><div><b>${fmt(eff, 1)}</b></div>
-          <div class="k">Gap to threshold</div><div>${fmt(gap, 1)}</div>
-          <div class="k">Nearest library</div><div>${fmt(dist, 0)} m</div>
-        </div>
-      `;
-      map.getCanvas().style.cursor = "help";
-      showPopup(e.lngLat, html);
-    });
-
-    map.on("mouseleave", "deserts", () => {
-      hidePopup();
-      map.getCanvas().style.cursor = "";
-    });
-
-    map.on("mousemove", "outreach", (e) => {
-      const f = e.features?.[0];
-      const props = f?.properties || {};
-      const name = props.name ?? props.id ?? "Outreach site";
-      const city = props.city ?? "-";
-      const district = props.district ?? "-";
-      const score = props.outreach_score;
-      const html = `
-        <div class="popup-title">${escapeHtml(name)}</div>
-        <div class="popup-subtitle">${escapeHtml(city)} · ${escapeHtml(district)}</div>
-        <div class="popup-grid">
-          <div class="k">Outreach score</div><div><b>${fmt(score, 1)}</b></div>
-        </div>
-      `;
-      map.getCanvas().style.cursor = "pointer";
-      showPopup(e.lngLat, html);
-    });
-
-    map.on("mouseleave", "outreach", () => {
-      hidePopup();
-      map.getCanvas().style.cursor = "";
-    });
+      map.on("mouseleave", l.layerId, () => {
+        hidePopup();
+        map.getCanvas().style.cursor = "";
+      });
+    }
 
     updateLayerToggles();
     setStatus("Map ready. Loading config…");
@@ -1121,6 +1130,19 @@ async function main() {
   initMap();
 
   await state.mapReady;
+
+  async function renderSourcesCard() {
+    if (!window.lrRenderSourcesCard) return;
+    try {
+      const health = await (window.lrApi?.getHealth ? window.lrApi.getHealth() : fetchJson("/health"));
+      window.lrRenderSourcesCard("sourcesCardConsole", { title: "Data & Provenance", health });
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  renderSourcesCard();
+  window.setInterval(renderSourcesCard, 30_000);
 
   try {
     const cfg = await fetchJson("/control/config");
