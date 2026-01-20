@@ -21,7 +21,8 @@ const LAYER_REGISTRY = [
     label: "Libraries",
     checkboxId: "layerLibraries",
     sourceId: "libraries",
-    layerId: "libraries",
+    layerIds: ["libraries"],
+    eventLayerId: "libraries",
     renderOrder: 30,
     shortcut: "L",
     cursor: "pointer",
@@ -71,7 +72,8 @@ const LAYER_REGISTRY = [
     label: "Deserts",
     checkboxId: "layerDeserts",
     sourceId: "deserts",
-    layerId: "deserts",
+    layerIds: ["deserts"],
+    eventLayerId: "deserts",
     renderOrder: 10,
     shortcut: "D",
     cursor: "help",
@@ -111,7 +113,8 @@ const LAYER_REGISTRY = [
     label: "Outreach",
     checkboxId: "layerOutreach",
     sourceId: "outreach",
-    layerId: "outreach",
+    layerIds: ["outreach"],
+    eventLayerId: "outreach",
     renderOrder: 20,
     shortcut: "O",
     cursor: "pointer",
@@ -145,6 +148,125 @@ const LAYER_REGISTRY = [
       `;
     },
   },
+  {
+    key: "metro",
+    label: "Metro",
+    checkboxId: "layerMetro",
+    sourceId: "stops_metro",
+    layerIds: ["stops-metro", "stops-metro-label"],
+    eventLayerId: "stops-metro",
+    renderOrder: 40,
+    shortcut: "M",
+    cursor: "pointer",
+    addSource(map) {
+      map.addSource("stops_metro", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    },
+    addLayer(map) {
+      map.addLayer({
+        id: "stops-metro",
+        type: "circle",
+        source: "stops_metro",
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "rgba(167, 139, 250, 0.9)",
+          "circle-opacity": 0.78,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "rgba(15,23,42,0.9)",
+        },
+      });
+      map.addLayer({
+        id: "stops-metro-label",
+        type: "symbol",
+        source: "stops_metro",
+        layout: {
+          "text-field": ["concat", "M ", ["slice", ["coalesce", ["get", "name"], ""], 0, 6]],
+          "text-size": 11,
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-offset": [0, 1.05],
+          "text-anchor": "top",
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+        },
+        paint: {
+          "text-color": "rgba(15,23,42,0.92)",
+          "text-halo-color": "rgba(255,255,255,0.92)",
+          "text-halo-width": 1.2,
+        },
+      });
+    },
+    tooltip({ props, escapeHtml }) {
+      const name = props.name ?? props.stop_id ?? "Metro station";
+      const city = props.city ?? "-";
+      const operator = props.source ?? "-";
+      return `
+        <div class="popup-title">${escapeHtml(name)}</div>
+        <div class="popup-subtitle">${escapeHtml(city)}</div>
+        <div class="popup-grid">
+          <div class="k">Type</div><div>Metro</div>
+          <div class="k">Operator</div><div>${escapeHtml(operator)}</div>
+        </div>
+      `;
+    },
+  },
+  {
+    key: "youbike",
+    label: "YouBike",
+    checkboxId: "layerYoubike",
+    sourceId: "youbike",
+    layerIds: ["youbike", "youbike-label"],
+    eventLayerId: "youbike",
+    renderOrder: 50,
+    shortcut: "Y",
+    cursor: "pointer",
+    addSource(map) {
+      map.addSource("youbike", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    },
+    addLayer(map) {
+      map.addLayer({
+        id: "youbike",
+        type: "circle",
+        source: "youbike",
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "rgba(20, 184, 166, 0.9)",
+          "circle-opacity": 0.7,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "rgba(15,23,42,0.9)",
+        },
+      });
+      map.addLayer({
+        id: "youbike-label",
+        type: "symbol",
+        source: "youbike",
+        layout: {
+          "text-field": ["concat", "Y ", ["slice", ["coalesce", ["get", "name"], ""], 0, 6]],
+          "text-size": 11,
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-offset": [0, 1.05],
+          "text-anchor": "top",
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+        },
+        paint: {
+          "text-color": "rgba(15,23,42,0.92)",
+          "text-halo-color": "rgba(255,255,255,0.92)",
+          "text-halo-width": 1.2,
+        },
+      });
+    },
+    tooltip({ props, escapeHtml }) {
+      const name = props.name ?? props.station_id ?? "YouBike station";
+      const city = props.city ?? "-";
+      return `
+        <div class="popup-title">${escapeHtml(name)}</div>
+        <div class="popup-subtitle">${escapeHtml(city)}</div>
+        <div class="popup-grid">
+          <div class="k">Type</div><div>YouBike</div>
+          <div class="k">Status</div><div>Location only</div>
+        </div>
+      `;
+    },
+  },
   // Future layers can be added here (youbike, population, etc.).
 ];
 
@@ -163,6 +285,14 @@ const state = {
     libraries: true,
     deserts: true,
     outreach: true,
+    metro: false,
+    youbike: false,
+  },
+  baselineData: null,
+  currentData: null,
+  transit: {
+    metro_geojson: null,
+    youbike_geojson: null,
   },
 };
 
@@ -179,6 +309,21 @@ function applyTheme(theme) {
     btn.textContent = t === "dark" ? "Dark" : "Light";
     btn.setAttribute("aria-pressed", t === "dark" ? "true" : "false");
     btn.title = t === "dark" ? "Switch to light theme" : "Switch to dark theme";
+  }
+
+  applyMapTheme(t);
+}
+
+function applyMapTheme(theme) {
+  const map = state.map;
+  if (!map) return;
+  const dark = theme === "dark";
+  const labelColor = dark ? "rgba(229,231,235,0.92)" : "rgba(15,23,42,0.92)";
+  const haloColor = dark ? "rgba(15,23,42,0.92)" : "rgba(255,255,255,0.92)";
+  for (const id of ["stops-metro-label", "youbike-label"]) {
+    if (!map.getLayer(id)) continue;
+    map.setPaintProperty(id, "text-color", labelColor);
+    map.setPaintProperty(id, "text-halo-color", haloColor);
   }
 }
 
@@ -223,6 +368,25 @@ function showNotice(message, kind = "info", { timeoutMs = 5000 } = {}) {
     window.setTimeout(() => {
       if (text.textContent === message) box.classList.add("hidden");
     }, timeoutMs);
+  }
+}
+
+function pushAction(message, kind = "info", { timeoutMs = 6500 } = {}) {
+  const drawer = el("actionDrawer");
+  if (!drawer) return;
+  const item = document.createElement("div");
+  item.className = `action-item ${kind === "success" || kind === "error" || kind === "warning" ? kind : ""}`.trim();
+  item.innerHTML = `<span class="action-dot" aria-hidden="true"></span><div class="action-text">${escapeHtml(
+    message
+  )}</div>`;
+  drawer.prepend(item);
+
+  const max = 4;
+  const items = Array.from(drawer.querySelectorAll(".action-item"));
+  for (const old of items.slice(max)) old.remove();
+
+  if (timeoutMs && timeoutMs > 0) {
+    window.setTimeout(() => item.remove(), timeoutMs);
   }
 }
 
@@ -703,9 +867,79 @@ function setLayerVisibility(layerId, visible) {
 
 function updateLayerToggles() {
   for (const l of LAYER_REGISTRY) {
-    setLayerVisibility(l.layerId, Boolean(state.layers?.[l.key]));
+    const ids = Array.isArray(l.layerIds) ? l.layerIds : l.layerId ? [l.layerId] : [];
+    for (const id of ids) setLayerVisibility(id, Boolean(state.layers?.[l.key]));
   }
   state.hoverPopup?.remove();
+}
+
+function fmtIsoLocal(iso) {
+  if (!iso) return "—";
+  const d = new Date(String(iso));
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString("zh-Hant", { hour12: false });
+}
+
+function relativeAge(iso) {
+  if (!iso) return null;
+  const d = new Date(String(iso));
+  if (Number.isNaN(d.getTime())) return null;
+  const s = Math.max(0, (Date.now() - d.getTime()) / 1000);
+  if (s < 90) return `${Math.round(s)}s ago`;
+  const m = s / 60;
+  if (m < 90) return `${Math.round(m)}m ago`;
+  const h = m / 60;
+  if (h < 48) return `${Math.round(h)}h ago`;
+  const days = h / 24;
+  return `${Math.round(days)}d ago`;
+}
+
+function renderDataStatus(health) {
+  const node = el("dataStatus");
+  if (!node) return;
+  const ing = health?.ingestion_status || null;
+  const run = health?.run_meta || null;
+  const files = health?.files || {};
+  const state = ing?.state || "unknown";
+  const lastFetch = ing?.fetch?.last_success_at || health?.stops_meta?.generated_at || null;
+  const nextRetry = ing?.fetch?.next_retry_at || null;
+  const lastPipeline = run?.generated_at || null;
+
+  const okOutputs =
+    Boolean(files.libraries_scored) && Boolean(files.deserts_csv || files.deserts_geojson) && Boolean(files.outreach_recommendations);
+
+  let kind = "info";
+  if (state === "rate_limited") kind = "warning";
+  if (state === "error") kind = "error";
+  if (!okOutputs) kind = "warning";
+
+  const parts = [];
+  parts.push(`Collector: ${state}`);
+  if (lastFetch) parts.push(`last fetch ${relativeAge(lastFetch) || fmtIsoLocal(lastFetch)}`);
+  if (state === "rate_limited" && nextRetry) parts.push(`retry ${relativeAge(nextRetry) || fmtIsoLocal(nextRetry)}`);
+  if (lastPipeline) parts.push(`pipeline ${relativeAge(lastPipeline) || fmtIsoLocal(lastPipeline)}`);
+  parts.push(okOutputs ? "outputs OK" : "outputs missing");
+
+  node.textContent = parts.join(" · ");
+  node.classList.toggle("muted", kind === "info");
+}
+
+async function refreshHealthUi() {
+  try {
+    const health = await (window.lrApi?.getHealth ? window.lrApi.getHealth() : fetchJson("/health"));
+    renderDataStatus(health);
+    if (window.lrRenderSourcesCard) window.lrRenderSourcesCard("sourcesCardConsole", { title: "Data & Provenance", health });
+
+    const stopsAt = health?.stops_meta?.generated_at;
+    const ybAt = health?.youbike_meta?.generated_at;
+    const note = [];
+    if (stopsAt) note.push(`Stops ${relativeAge(stopsAt) || fmtIsoLocal(stopsAt)}`);
+    if (ybAt) note.push(`YouBike ${relativeAge(ybAt) || fmtIsoLocal(ybAt)}`);
+    const elUpdated = el("legendUpdatedAt");
+    if (elUpdated) elUpdated.textContent = `Updated: ${note.length ? note.join(" · ") : "—"}`;
+  } catch (e) {
+    console.warn(e);
+  }
 }
 
 function renderInspectorLibrary(lib) {
@@ -758,6 +992,135 @@ function setGeojson(sourceId, geojson) {
   src.setData(geojson);
 }
 
+function initHighlightLayers(map) {
+  map.addSource("highlights", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({
+    id: "highlights-halo",
+    type: "circle",
+    source: "highlights",
+    paint: {
+      "circle-radius": 16,
+      "circle-color": [
+        "match",
+        ["get", "kind"],
+        "low_library_score",
+        "rgba(239,68,68,0.45)",
+        "high_desert_gap",
+        "rgba(245,158,11,0.45)",
+        "top_outreach",
+        "rgba(37,99,235,0.35)",
+        "rgba(37,99,235,0.35)",
+      ],
+      "circle-opacity": 1,
+      "circle-stroke-width": 2,
+      "circle-stroke-color": "rgba(15,23,42,0.9)",
+    },
+  });
+  map.addLayer({
+    id: "highlights-point",
+    type: "circle",
+    source: "highlights",
+    paint: {
+      "circle-radius": 7,
+      "circle-color": [
+        "match",
+        ["get", "kind"],
+        "low_library_score",
+        "rgba(239,68,68,0.85)",
+        "high_desert_gap",
+        "rgba(245,158,11,0.85)",
+        "top_outreach",
+        "rgba(37,99,235,0.75)",
+        "rgba(37,99,235,0.75)",
+      ],
+      "circle-opacity": 0.95,
+      "circle-stroke-width": 2,
+      "circle-stroke-color": "rgba(15,23,42,0.9)",
+    },
+  });
+}
+
+function setHighlightData(features) {
+  const map = state.map;
+  if (!map) return;
+  const src = map.getSource("highlights");
+  if (!src) return;
+  src.setData({ type: "FeatureCollection", features: features || [] });
+}
+
+function clearHighlight() {
+  setHighlightData([]);
+  pushAction("Highlights cleared.", "info");
+}
+
+function applyHighlight() {
+  const kind = el("highlightKind")?.value || "low_library_score";
+  const topN = Math.max(1, Number(el("highlightTopN")?.value) || 20);
+  const data = state.currentData || state.baselineData || null;
+  if (!data) {
+    pushAction("No baseline loaded yet. Run pipeline or load outputs first.", "warning");
+    return;
+  }
+
+  const features = [];
+  if (kind === "low_library_score") {
+    const libs = data.libraries_geojson?.features || [];
+    const scoreOf = (f) => {
+      const v = Number(f?.properties?.accessibility_score);
+      return Number.isFinite(v) ? v : Infinity;
+    };
+    const sorted = [...libs].sort((a, b) => scoreOf(a) - scoreOf(b));
+    for (const f of sorted.slice(0, topN)) {
+      features.push({ type: "Feature", geometry: f.geometry, properties: { kind, id: f?.properties?.id, name: f?.properties?.name } });
+    }
+  } else if (kind === "high_desert_gap") {
+    const des = (data.deserts_geojson?.features || []).filter((f) => Boolean(f?.properties?.is_desert));
+    const gapOf = (f) => {
+      const v = Number(f?.properties?.gap_to_threshold);
+      return Number.isFinite(v) ? v : -Infinity;
+    };
+    const sorted = [...des].sort((a, b) => gapOf(b) - gapOf(a));
+    for (const f of sorted.slice(0, topN)) {
+      features.push({ type: "Feature", geometry: f.geometry, properties: { kind, city: f?.properties?.city } });
+    }
+  } else if (kind === "top_outreach") {
+    const rows = data.outreach_rows || [];
+    const sc = (r) => {
+      const v = Number(r?.outreach_score);
+      return Number.isFinite(v) ? v : -Infinity;
+    };
+    const sorted = [...rows].sort((a, b) => sc(b) - sc(a));
+    for (const r of sorted.slice(0, topN)) {
+      if (r?.lat === undefined || r?.lon === undefined) continue;
+      features.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [Number(r.lon), Number(r.lat)] },
+        properties: { kind, id: r?.id, name: r?.name, city: r?.city },
+      });
+    }
+  }
+
+  setHighlightData(features);
+  pushAction(`Highlight: ${kind} · Top ${features.length}`, "success");
+  if (features.length) fitToGeojson({ type: "FeatureCollection", features });
+}
+
+function metersBetween([lon1, lat1], [lon2, lat2]) {
+  const rad = Math.PI / 180;
+  const lat = (lat1 + lat2) / 2;
+  const x = (lon2 - lon1) * rad * Math.cos(lat * rad);
+  const y = (lat2 - lat1) * rad;
+  return Math.sqrt(x * x + y * y) * 6371000;
+}
+
+function setGeojsonSource(sourceId, geojson) {
+  const map = state.map;
+  if (!map) return;
+  const src = map.getSource(sourceId);
+  if (!src) return;
+  src.setData(geojson || { type: "FeatureCollection", features: [] });
+}
+
 function fitToGeojson(geojson) {
   const map = state.map;
   if (!map) return;
@@ -789,11 +1152,13 @@ function fitToGeojson(geojson) {
 
 async function loadBaselineOutputs() {
   const baseline = { libraries: null, deserts: null, outreach: null };
+  const baselineData = { libraries_geojson: null, deserts_geojson: null, outreach_rows: null };
   try {
     const libs = await fetchJson("/geo/libraries");
     setGeojson("libraries", libs);
     fitToGeojson(libs);
     baseline.libraries = computeLibraryStatsFromGeojson(libs);
+    baselineData.libraries_geojson = libs;
   } catch (e) {
     console.warn(e);
   }
@@ -802,6 +1167,7 @@ async function loadBaselineOutputs() {
     const deserts = await fetchJson("/geo/deserts");
     setGeojson("deserts", deserts);
     baseline.deserts = computeDesertStatsFromGeojson(deserts);
+    baselineData.deserts_geojson = deserts;
   } catch (e) {
     console.warn(e);
   }
@@ -818,13 +1184,32 @@ async function loadBaselineOutputs() {
       })),
     });
     baseline.outreach = computeOutreachStatsFromRows(recs);
+    baselineData.outreach_rows = recs;
   } catch (e) {
     console.warn(e);
   }
 
   if (baseline.libraries || baseline.deserts || baseline.outreach) {
     state.baselineStats = baseline;
+    state.baselineData = baselineData;
     renderStory();
+  }
+}
+
+async function loadOptionalTransitLayers() {
+  try {
+    const metro = await fetchJson("/geo/stops?modes=metro&limit=50000");
+    setGeojson("stops_metro", metro);
+    state.transit.metro_geojson = metro;
+  } catch (e) {
+    console.warn(e);
+  }
+  try {
+    const yb = await fetchJson("/geo/youbike?limit=50000");
+    setGeojson("youbike", yb);
+    state.transit.youbike_geojson = yb;
+  } catch (e) {
+    console.warn(e);
   }
 }
 
@@ -839,6 +1224,7 @@ async function runWhatIf() {
 
   const t0 = safeNowMs();
   setStatus("Running what-if recomputation…");
+  pushAction("Running what-if…", "info", { timeoutMs: 2500 });
   try {
     const res = await fetchJson("/analysis/whatif", {
       method: "POST",
@@ -864,11 +1250,18 @@ async function runWhatIf() {
       deserts: computeDesertStatsFromGeojson(res.deserts_geojson),
       outreach: computeOutreachStatsFromRows(res.outreach || []),
     };
+    pushAction(`What-if updated (${fmt(took, 1)}s) · deserts ${fmt(state.currentStats?.deserts?.desert_count, 0)}`, "success");
+    state.currentData = {
+      libraries_geojson: res.libraries_geojson,
+      deserts_geojson: res.deserts_geojson,
+      outreach_rows: res.outreach || [],
+    };
     renderStory();
     writePresetToUrl({ scenario, cities, patch });
   } catch (e) {
     setStatus(`What-if failed: ${e.message}`);
     showNotice(`What-if failed: ${e.message}`, "error", { timeoutMs: 0 });
+    pushAction(`What-if failed: ${e.message}`, "error", { timeoutMs: 0 });
     console.error(e);
   } finally {
     if (applyBtn) {
@@ -882,6 +1275,7 @@ function resetFormToConfig() {
   if (!state.config) return;
   applyConfigToForm(state.config);
   showNotice("Reset to scenario defaults.", "info", { timeoutMs: 3000 });
+  pushAction("Reset to scenario defaults.", "info", { timeoutMs: 3500 });
 }
 
 function savePreset() {
@@ -891,6 +1285,7 @@ function savePreset() {
   setStatus("Preset saved locally.");
   writePresetToUrl(preset);
   showNotice("Preset saved locally and synced to URL.", "success", { timeoutMs: 3500 });
+  pushAction("Preset saved.", "success", { timeoutMs: 3500 });
 }
 
 function loadPreset() {
@@ -900,6 +1295,7 @@ function loadPreset() {
     const p = JSON.parse(raw);
     applyPresetToForm(p);
     setStatus("Preset loaded.");
+    pushAction("Preset loaded.", "success", { timeoutMs: 3500 });
     return true;
   } catch (e) {
     console.warn(e);
@@ -960,6 +1356,8 @@ function initKeybindings() {
     if (e.key === "l" || e.key === "L") return toggleLayerByKey("libraries");
     if (e.key === "d" || e.key === "D") return toggleLayerByKey("deserts");
     if (e.key === "o" || e.key === "O") return toggleLayerByKey("outreach");
+    if (e.key === "m" || e.key === "M") return toggleLayerByKey("metro");
+    if (e.key === "y" || e.key === "Y") return toggleLayerByKey("youbike");
 
     if (e.key === "0") {
       state.map?.easeTo({ bearing: 0, pitch: 0, duration: 120 });
@@ -983,6 +1381,34 @@ function initUIHandlers() {
   el("help").addEventListener("click", () => toggleOverlay(true));
   el("closeOverlay").addEventListener("click", () => toggleOverlay(false));
   el("noticeClose").addEventListener("click", hideNotice);
+  el("refreshStatus")?.addEventListener("click", () => refreshHealthUi().then(() => pushAction("Status refreshed.", "success", { timeoutMs: 2500 })));
+  el("copyFixCmd")?.addEventListener("click", async () => {
+    const cmds = [
+      "# LibraryReach quick fixes",
+      "docker compose ps",
+      "docker compose logs -n 200 worker",
+      "docker compose logs -n 200 api",
+      "docker compose up -d --build worker api",
+      "",
+      "# If you need to fetch data manually:",
+      "python -m libraryreach fetch-stops",
+      "python -m libraryreach fetch-youbike",
+    ].join("\\n");
+    try {
+      await navigator.clipboard.writeText(cmds);
+      pushAction("Fix commands copied.", "success");
+    } catch (e) {
+      console.warn(e);
+      pushAction("Copy failed. Please copy from the instructions in console.", "warning");
+      showNotice("Copy failed. See console logs for suggested commands.", "warning", { timeoutMs: 5000 });
+      console.log(cmds);
+    }
+  });
+
+  const highlightApply = el("highlightApply");
+  const highlightClear = el("highlightClear");
+  highlightApply?.addEventListener("click", () => applyHighlight());
+  highlightClear?.addEventListener("click", () => clearHighlight());
 
   el("copyLink").addEventListener("click", async () => {
     try {
@@ -990,9 +1416,11 @@ function initUIHandlers() {
       writePresetToUrl(preset);
       await navigator.clipboard.writeText(window.location.href);
       showNotice("Link copied.", "success", { timeoutMs: 2000 });
+      pushAction("Share link copied.", "success");
     } catch (e) {
       console.warn(e);
       showNotice("Copy failed. Please copy from the address bar.", "warning", { timeoutMs: 5000 });
+      pushAction("Copy failed. Please copy from the address bar.", "warning");
     }
   });
 
@@ -1031,9 +1459,11 @@ function initUIHandlers() {
       applyConfigToForm(cfg);
       setStatus(`Loaded scenario config: ${scenario}`);
       showNotice(`Loaded scenario: ${scenario}`, "info", { timeoutMs: 2500 });
+      pushAction(`Scenario loaded: ${scenario}`, "success", { timeoutMs: 3500 });
     } catch (e) {
       setStatus(`Failed to load scenario config: ${e.message}`);
       showNotice(`Failed to load scenario: ${e.message}`, "error", { timeoutMs: 0 });
+      pushAction(`Scenario load failed: ${e.message}`, "error", { timeoutMs: 0 });
     }
   });
 
@@ -1042,6 +1472,7 @@ function initUIHandlers() {
     node?.addEventListener("change", (e) => {
       state.layers[l.key] = Boolean(e.target.checked);
       updateLayerToggles();
+      pushAction(`Layer: ${l.label} ${state.layers[l.key] ? "shown" : "hidden"}`, "info", { timeoutMs: 3500 });
     });
   }
 }
@@ -1065,6 +1496,68 @@ function initMap() {
   map.on("load", () => {
     for (const l of LAYER_REGISTRY) l.addSource(map);
     for (const l of [...LAYER_REGISTRY].sort((a, b) => (a.renderOrder ?? 0) - (b.renderOrder ?? 0))) l.addLayer(map);
+    initHighlightLayers(map);
+    map.addSource("selection", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addSource("youbike_nearby", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+    map.addSource("metro_links", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+
+    map.addLayer({
+      id: "metro-links",
+      type: "line",
+      source: "metro_links",
+      paint: {
+        "line-color": "rgba(59, 130, 246, 0.65)",
+        "line-width": 2,
+        "line-opacity": 0.8,
+      },
+    });
+
+    map.addLayer({
+      id: "youbike-nearby",
+      type: "circle",
+      source: "youbike_nearby",
+      paint: {
+        "circle-radius": 7,
+        "circle-color": [
+          "interpolate",
+          ["linear"],
+          ["coalesce", ["get", "dist_m"], 0],
+          0,
+          "rgba(34,197,94,0.9)",
+          400,
+          "rgba(245,158,11,0.9)",
+          900,
+          "rgba(239,68,68,0.9)",
+        ],
+        "circle-opacity": 0.9,
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "rgba(15,23,42,0.9)",
+      },
+    });
+
+    map.addLayer({
+      id: "selection-halo",
+      type: "circle",
+      source: "selection",
+      paint: {
+        "circle-radius": 18,
+        "circle-color": "rgba(59, 130, 246, 0.18)",
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "rgba(59, 130, 246, 0.75)",
+      },
+    });
+
+    map.addLayer({
+      id: "selection-point",
+      type: "circle",
+      source: "selection",
+      paint: {
+        "circle-radius": 8,
+        "circle-color": "rgba(59, 130, 246, 0.75)",
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "rgba(15,23,42,0.9)",
+      },
+    });
 
     const hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
     state.hoverPopup = hoverPopup;
@@ -1100,8 +1593,65 @@ function initMap() {
       }
     });
 
+    map.on("click", "stops-metro", (e) => {
+      const f = e.features?.[0];
+      const coords = f?.geometry?.coordinates;
+      if (!Array.isArray(coords) || coords.length !== 2) return;
+      const metroCoord = [Number(coords[0]), Number(coords[1])];
+      const props = f?.properties || {};
+      setGeojsonSource("selection", {
+        type: "FeatureCollection",
+        features: [{ type: "Feature", geometry: { type: "Point", coordinates: metroCoord }, properties: { type: "metro" } }],
+      });
+
+      const yb = state.transit.youbike_geojson?.features || [];
+      if (yb.length === 0) {
+        pushAction("No YouBike layer loaded. Enable YouBike ingestion to show nearby stations.", "warning", { timeoutMs: 6000 });
+        return;
+      }
+
+      const nearby = [];
+      for (const yf of yb) {
+        const c = yf?.geometry?.coordinates;
+        if (!Array.isArray(c) || c.length !== 2) continue;
+        const d = metersBetween(metroCoord, [Number(c[0]), Number(c[1])]);
+        if (!Number.isFinite(d) || d > 900) continue;
+        nearby.push({ f: yf, d });
+      }
+      nearby.sort((a, b) => a.d - b.d);
+      const picked = nearby.slice(0, 24);
+
+      setGeojsonSource("youbike_nearby", {
+        type: "FeatureCollection",
+        features: picked.map(({ f: yf, d }) => ({
+          type: "Feature",
+          geometry: yf.geometry,
+          properties: { ...(yf.properties || {}), dist_m: Math.round(d) },
+        })),
+      });
+
+      setGeojsonSource("metro_links", {
+        type: "FeatureCollection",
+        features: picked.map(({ f: yf, d }) => ({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: [metroCoord, yf.geometry.coordinates] },
+          properties: { dist_m: Math.round(d) },
+        })),
+      });
+
+      state.layers.youbike = true;
+      const ybToggle = el("layerYoubike");
+      if (ybToggle) ybToggle.checked = true;
+      updateLayerToggles();
+
+      const name = props.name ?? props.stop_id ?? "Metro station";
+      pushAction(`Selected metro: ${name} · nearby YouBike ${picked.length}`, "success", { timeoutMs: 6500 });
+    });
+
     for (const l of LAYER_REGISTRY) {
-      map.on("mousemove", l.layerId, (e) => {
+      const layerId = l.eventLayerId || (Array.isArray(l.layerIds) ? l.layerIds[0] : l.layerId);
+      if (!layerId) continue;
+      map.on("mousemove", layerId, (e) => {
         const f = e.features?.[0];
         const props = f?.properties || {};
         const html = l.tooltip ? l.tooltip({ props, fmt, escapeHtml }) : "";
@@ -1110,7 +1660,7 @@ function initMap() {
         showPopup(e.lngLat, html);
       });
 
-      map.on("mouseleave", l.layerId, () => {
+      map.on("mouseleave", layerId, () => {
         hidePopup();
         map.getCanvas().style.cursor = "";
       });
@@ -1130,30 +1680,25 @@ async function main() {
   initMap();
 
   await state.mapReady;
+  applyMapTheme(document.documentElement.getAttribute("data-theme"));
 
-  async function renderSourcesCard() {
-    if (!window.lrRenderSourcesCard) return;
-    try {
-      const health = await (window.lrApi?.getHealth ? window.lrApi.getHealth() : fetchJson("/health"));
-      window.lrRenderSourcesCard("sourcesCardConsole", { title: "Data & Provenance", health });
-    } catch (e) {
-      console.warn(e);
-    }
-  }
-
-  renderSourcesCard();
-  window.setInterval(renderSourcesCard, 30_000);
+  refreshHealthUi();
+  window.setInterval(refreshHealthUi, 30_000);
 
   try {
     const cfg = await fetchJson("/control/config");
     applyConfigToForm(cfg);
     setStatus("Config loaded. Loading baseline outputs…");
+    pushAction("Config loaded.", "success", { timeoutMs: 3000 });
   } catch (e) {
     setStatus("Config not available.");
     console.warn(e);
+    pushAction("Config not available.", "warning", { timeoutMs: 4000 });
   }
 
   await loadBaselineOutputs();
+  await loadOptionalTransitLayers();
+  pushAction("Baseline layers loaded.", "success", { timeoutMs: 3500 });
 
   const urlPreset = readPresetFromUrl();
   if (urlPreset) {
@@ -1168,6 +1713,7 @@ async function main() {
     if (applyPresetToForm(urlPreset)) {
       setStatus("Preset loaded from URL.");
       showNotice("Loaded preset from URL.", "info", { timeoutMs: 3500 });
+      pushAction("Preset loaded from URL.", "success", { timeoutMs: 3500 });
     }
   } else if (loadPreset()) {
     showNotice("Loaded preset from local storage.", "info", { timeoutMs: 3500 });

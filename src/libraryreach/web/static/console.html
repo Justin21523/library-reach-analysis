@@ -24,6 +24,11 @@
             </div>
           </div>
           <div id="status" class="status">Loading…</div>
+          <div id="dataStatus" class="data-status muted">Data status: loading…</div>
+          <div class="row" style="margin-top: 8px">
+            <button id="refreshStatus" class="btn subtle" type="button">Refresh</button>
+            <button id="copyFixCmd" class="btn subtle" type="button">Copy fix commands</button>
+          </div>
           <div id="story" class="story muted">Tip: run Apply to generate a what-if summary.</div>
           <div id="notice" class="notice hidden" role="status" aria-live="polite">
             <div id="noticeText" class="notice-text"></div>
@@ -56,7 +61,37 @@
               <label class="check"><input id="layerLibraries" type="checkbox" checked />Libraries (L)</label>
               <label class="check"><input id="layerDeserts" type="checkbox" checked />Deserts (D)</label>
               <label class="check"><input id="layerOutreach" type="checkbox" checked />Outreach (O)</label>
+              <label class="check"><input id="layerMetro" type="checkbox" />Metro stations (M)</label>
+              <label class="check"><input id="layerYoubike" type="checkbox" />YouBike stations (Y)</label>
             </div>
+            <div class="hint">
+              Tip: use layers to read the story. Metro/YouBike layers depend on ingestion outputs (TDX).
+            </div>
+          </div>
+        </div>
+
+        <div class="foldout" data-foldout="highlights">
+          <button class="foldout-header" type="button">Highlights</button>
+          <div class="foldout-body">
+            <div class="row">
+              <label class="field" style="flex: 1">
+                <span>Show Top N</span>
+                <select id="highlightKind">
+                  <option value="low_library_score">Lowest library access score</option>
+                  <option value="high_desert_gap">Largest desert gap</option>
+                  <option value="top_outreach">Top outreach recommendations</option>
+                </select>
+              </label>
+              <label class="field" style="width: 110px">
+                <span>N</span>
+                <input id="highlightTopN" type="number" min="1" step="1" value="20" />
+              </label>
+            </div>
+            <div class="row">
+              <button id="highlightApply" class="btn primary" type="button">Show</button>
+              <button id="highlightClear" class="btn" type="button">Clear</button>
+            </div>
+            <div class="hint">This highlights the most relevant points for quick briefings and projection.</div>
           </div>
         </div>
 
@@ -181,6 +216,7 @@
       </aside>
       <main id="mapWrap">
         <div id="map"></div>
+        <div id="actionDrawer" class="action-drawer" role="status" aria-live="polite" aria-relevant="additions"></div>
         <div id="legend" class="legend" aria-label="Map legend">
           <div class="legend-title">Legend</div>
           <div class="legend-row">
@@ -204,6 +240,17 @@
             <span class="legend-dot outreach" aria-hidden="true"></span>
             <span>Outreach recommendation</span>
           </div>
+          <div class="legend-divider"></div>
+          <div class="legend-row">
+            <span class="legend-dot metro" aria-hidden="true"></span>
+            <span>Metro station (label = name)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-dot youbike" aria-hidden="true"></span>
+            <span>YouBike station (location only)</span>
+          </div>
+          <div class="legend-divider"></div>
+          <div id="legendUpdatedAt" class="legend-foot muted">Updated: —</div>
         </div>
       </main>
     </div>
@@ -223,7 +270,7 @@
             <div class="v">Pitch up/down</div>
             <div class="k">0</div>
             <div class="v">Reset bearing/pitch</div>
-            <div class="k">L/D/O</div>
+            <div class="k">L/D/O/M/Y</div>
             <div class="v">Toggle layers</div>
             <div class="k">Ctrl+Enter</div>
             <div class="v">Apply parameters</div>

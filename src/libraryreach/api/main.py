@@ -133,6 +133,21 @@ def _df_to_point_geojson(df: pd.DataFrame, *, lat_col: str = "lat", lon_col: str
     return {"type": "FeatureCollection", "features": features}
 
 
+def _point_geojson_from_csv(
+    path: Path,
+    *,
+    lat_col: str = "lat",
+    lon_col: str = "lon",
+    drop_cols: set[str] | None = None,
+) -> dict[str, Any]:
+    df = pd.read_csv(path)
+    if drop_cols:
+        for c in drop_cols:
+            if c in df.columns:
+                df = df.drop(columns=[c])
+    return _df_to_point_geojson(df, lat_col=lat_col, lon_col=lon_col)
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -167,6 +182,7 @@ def health() -> dict[str, Any]:
     raw_dir = _raw_dir(settings)
     ingestion_status = _load_optional_json(raw_dir / "tdx" / "ingestion_status.json")
     stops_meta = _load_optional_json(raw_dir / "tdx" / "stops.meta.json")
+    youbike_meta = _load_optional_json(raw_dir / "tdx" / "youbike_stations.meta.json")
     return {
         "ok": True,
         "generated_at": utc_now_iso(),
@@ -176,6 +192,7 @@ def health() -> dict[str, Any]:
         "qa": qa,
         "ingestion_status": ingestion_status,
         "stops_meta": stops_meta,
+        "youbike_meta": youbike_meta,
         "sources_index": _sources_index_summary(settings),
         "files": {
             "libraries_scored": (p / "libraries_scored.csv").exists(),
@@ -184,12 +201,17 @@ def health() -> dict[str, Any]:
             "deserts_geojson": (p / "deserts.geojson").exists(),
             "outreach_recommendations": (p / "outreach_recommendations.csv").exists(),
             "tdx_stops": (raw_dir / "tdx" / "stops.csv").exists(),
+            "tdx_youbike_stations": (raw_dir / "tdx" / "youbike_stations.csv").exists(),
         },
         "mtimes": {
             "libraries_scored": (p / "libraries_scored.csv").stat().st_mtime if (p / "libraries_scored.csv").exists() else None,
             "deserts_csv": (p / "deserts.csv").stat().st_mtime if (p / "deserts.csv").exists() else None,
             "deserts_geojson": (p / "deserts.geojson").stat().st_mtime if (p / "deserts.geojson").exists() else None,
             "outreach_recommendations": (p / "outreach_recommendations.csv").stat().st_mtime if (p / "outreach_recommendations.csv").exists() else None,
+            "tdx_stops": (raw_dir / "tdx" / "stops.csv").stat().st_mtime if (raw_dir / "tdx" / "stops.csv").exists() else None,
+            "tdx_youbike_stations": (raw_dir / "tdx" / "youbike_stations.csv").stat().st_mtime
+            if (raw_dir / "tdx" / "youbike_stations.csv").exists()
+            else None,
         },
     }
 
@@ -217,6 +239,7 @@ def meta() -> dict[str, Any]:
         "qa": load_qa_report(p),
         "ingestion_status": _load_optional_json(raw_dir / "tdx" / "ingestion_status.json"),
         "stops_meta": _load_optional_json(raw_dir / "tdx" / "stops.meta.json"),
+        "youbike_meta": _load_optional_json(raw_dir / "tdx" / "youbike_stations.meta.json"),
         "sources_index": _sources_index_summary(settings),
     }
 
@@ -822,3 +845,88 @@ def outreach_recommendations(
     df = df.sort_values("outreach_score", ascending=False)
     df = df.head(int(top_n)).copy()
     return [OutreachRecommendation(**r) for r in _safe_records(df)]
+
+
+@app.get("/geo/stops")
+def stops_geojson(
+    bbox: str | None = None,
+    modes: list[str] = Query(default=["metro"]),
+    city: str | None = None,
+    limit: int = 50000,
+) -> dict[str, Any]:
+    settings = _settings_for_scenario(DEFAULT_SCENARIO)
+    raw_dir = _raw_dir(settings)
+    path = raw_dir / "tdx" / "stops.csv"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="stops.csv not found (run ingestion)")
+
+    df = pd.read_csv(path)
+
+    if "mode" in df.columns and modes:
+        mode_set = {str(m) for m in modes}
+        df = df[df["mode"].astype(str).isin(mode_set)].copy()
+    if city and "city" in df.columns:
+        df = df[df["city"].astype(str) == str(city)].copy()
+
+    bb = None
+    if bbox:
+        try:
+            bb = parse_bbox(bbox)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if "lon" in df.columns and "lat" in df.columns:
+            df = df[
+                (df["lon"].astype(float) >= bb.min_lon)
+                & (df["lon"].astype(float) <= bb.max_lon)
+                & (df["lat"].astype(float) >= bb.min_lat)
+                & (df["lat"].astype(float) <= bb.max_lat)
+            ].copy()
+
+    df = df.dropna(subset=["lat", "lon"])
+    if limit and len(df) > int(limit):
+        df = df.head(int(limit)).copy()
+
+    out = _df_to_point_geojson(df, lat_col="lat", lon_col="lon")
+    if bb:
+        out["bbox"] = [bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat]
+    return out
+
+
+@app.get("/geo/youbike")
+def youbike_geojson(
+    bbox: str | None = None,
+    city: str | None = None,
+    limit: int = 50000,
+) -> dict[str, Any]:
+    settings = _settings_for_scenario(DEFAULT_SCENARIO)
+    raw_dir = _raw_dir(settings)
+    path = raw_dir / "tdx" / "youbike_stations.csv"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="youbike_stations.csv not found (enable_youbike + run ingestion)")
+
+    df = pd.read_csv(path)
+    if city and "city" in df.columns:
+        df = df[df["city"].astype(str) == str(city)].copy()
+
+    bb = None
+    if bbox:
+        try:
+            bb = parse_bbox(bbox)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if "lon" in df.columns and "lat" in df.columns:
+            df = df[
+                (df["lon"].astype(float) >= bb.min_lon)
+                & (df["lon"].astype(float) <= bb.max_lon)
+                & (df["lat"].astype(float) >= bb.min_lat)
+                & (df["lat"].astype(float) <= bb.max_lat)
+            ].copy()
+
+    df = df.dropna(subset=["lat", "lon"])
+    if limit and len(df) > int(limit):
+        df = df.head(int(limit)).copy()
+
+    out = _df_to_point_geojson(df, lat_col="lat", lon_col="lon")
+    if bb:
+        out["bbox"] = [bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat]
+    return out
