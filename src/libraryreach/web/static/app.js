@@ -386,6 +386,11 @@ const state = {
     youbike_geojson: null,
   },
   spotlight: "all",
+  libraryIndex: {
+    loaded: false,
+    rows: [],
+  },
+  selectedLibrary: null,
 };
 
 function el(id) {
@@ -1109,6 +1114,7 @@ async function refreshHealthUi() {
 }
 
 function renderInspectorLibrary(lib) {
+  state.selectedLibrary = lib || null;
   const score = Number(lib.accessibility_score) || 0;
   const badgeColor =
     score >= 70
@@ -1117,15 +1123,55 @@ function renderInspectorLibrary(lib) {
         ? "rgba(230,159,0,0.18)"
         : "rgba(213,94,0,0.18)";
   const explainText = lib.accessibility_explain ?? lib.explain_text ?? "-";
+  const addr = lib.address ?? lib.addr ?? "-";
+  const lat = lib.lat;
+  const lon = lib.lon;
+  const mapsUrl =
+    lat !== undefined && lon !== undefined
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lon}`)}`
+      : addr && addr !== "-" ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(addr))}` : null;
+
   el("inspector").innerHTML = `
     <div class="kv">
-      <div class="k">Name</div><div>${lib.name ?? "-"}</div>
-      <div class="k">City</div><div>${lib.city ?? "-"} / ${lib.district ?? "-"}</div>
+      <div class="k">Name</div><div>${escapeHtml(lib.name ?? "-")}</div>
+      <div class="k">City</div><div>${escapeHtml(lib.city ?? "-")} / ${escapeHtml(lib.district ?? "-")}</div>
+      <div class="k">Address</div><div>${escapeHtml(addr)}</div>
       <div class="k">Score</div>
       <div><span class="pill" style="background:${badgeColor}">${fmt(score, 1)}</span></div>
       <div class="k">Explain</div><div>${explainText}</div>
     </div>
+    <div class="row" style="margin-top: 10px">
+      <button id="insCopySummary" class="btn subtle" type="button">Copy summary</button>
+      <button id="insCopyAddress" class="btn subtle" type="button">Copy address</button>
+      <button id="insNearestStops" class="btn" type="button">Nearest stops</button>
+      ${mapsUrl ? `<a class="btn primary" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noreferrer">Open maps</a>` : ""}
+    </div>
+    <div id="insNearestStopsBox" class="muted" style="margin-top: 8px; display:none"></div>
   `;
+
+  el("insCopySummary")?.addEventListener("click", async () => {
+    const text =
+      `${lib.name ?? "-"} (${lib.city ?? "-"} / ${lib.district ?? "-"})` +
+      ` · score ${fmt(lib.accessibility_score, 1)} · deserts threshold see console` +
+      (addr && addr !== "-" ? ` · ${addr}` : "");
+    try {
+      await navigator.clipboard.writeText(text);
+      pushAction("Summary copied.", "success", { timeoutMs: 2500 });
+    } catch (e) {
+      console.warn(e);
+      pushAction("Copy failed.", "warning", { timeoutMs: 3500 });
+    }
+  });
+  el("insCopyAddress")?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(String(addr || ""));
+      pushAction("Address copied.", "success", { timeoutMs: 2500 });
+    } catch (e) {
+      console.warn(e);
+      pushAction("Copy failed.", "warning", { timeoutMs: 3500 });
+    }
+  });
+  el("insNearestStops")?.addEventListener("click", () => showNearestStopsForLibrary(lib));
 }
 
 function renderOutreachList(rows) {
@@ -1293,6 +1339,124 @@ function setGeojsonSource(sourceId, geojson) {
   src.setData(geojson || { type: "FeatureCollection", features: [] });
 }
 
+async function ensureLibraryIndex() {
+  if (state.libraryIndex.loaded) return state.libraryIndex.rows;
+  try {
+    const rows = await fetchJson("/libraries");
+    state.libraryIndex.loaded = true;
+    state.libraryIndex.rows = Array.isArray(rows) ? rows : [];
+    return state.libraryIndex.rows;
+  } catch (e) {
+    console.warn(e);
+    state.libraryIndex.loaded = true;
+    state.libraryIndex.rows = [];
+    return [];
+  }
+}
+
+function renderLibrarySearchResults(rows, q) {
+  const host = el("librarySearchResults");
+  if (!host) return;
+  const query = String(q || "").trim().toLowerCase();
+  if (!query) {
+    host.innerHTML = "";
+    return;
+  }
+  const matches = (rows || [])
+    .filter((r) => {
+      const hay = `${r.name || ""} ${r.address || ""} ${r.city || ""} ${r.district || ""}`.toLowerCase();
+      return hay.includes(query);
+    })
+    .slice(0, 10);
+
+  if (matches.length === 0) {
+    host.innerHTML = `<div class="muted">No matches.</div>`;
+    return;
+  }
+  host.innerHTML = matches
+    .map((r) => {
+      const id = escapeHtml(r.id ?? "");
+      const name = escapeHtml(r.name ?? "-");
+      const sub = escapeHtml(`${r.city ?? "-"} · ${r.district ?? "-"}`);
+      const score = r.accessibility_score === undefined ? "" : `<span class="pill">${fmt(r.accessibility_score, 1)}</span>`;
+      return `
+        <div class="item" style="cursor:pointer" data-lib-id="${id}">
+          <div class="title"><div>${name}</div>${score}</div>
+          <div class="body">${sub}<br/><span class="muted">${escapeHtml(r.address ?? "")}</span></div>
+        </div>
+      `;
+    })
+    .join("");
+
+  for (const node of host.querySelectorAll("[data-lib-id]")) {
+    node.addEventListener("click", () => {
+      const id = node.getAttribute("data-lib-id");
+      const lib = matches.find((x) => String(x.id) === String(id));
+      if (!lib) return;
+      selectLibraryByRow(lib);
+    });
+  }
+}
+
+function selectLibraryByRow(lib) {
+  const map = state.map;
+  if (!map) return;
+  const lat = Number(lib.lat);
+  const lon = Number(lib.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  setGeojsonSource("selection", {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] }, properties: { type: "library" } }],
+  });
+  map.easeTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 12), duration: 450 });
+  pushAction(`Located: ${lib.name ?? "library"}`, "success", { timeoutMs: 3500 });
+  applySpotlightMode();
+  renderInspectorLibrary(lib);
+}
+
+async function showNearestStopsForLibrary(lib) {
+  const box = el("insNearestStopsBox");
+  if (!box) return;
+  const lat = Number(lib.lat);
+  const lon = Number(lib.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  box.style.display = "";
+  box.textContent = "Loading nearest stops…";
+  try {
+    const qs = new URLSearchParams();
+    qs.set("lat", String(lat));
+    qs.set("lon", String(lon));
+    qs.append("modes", "metro");
+    qs.set("k", "6");
+    const res = await fetchJson(`/analysis/nearest-stops?${qs.toString()}`);
+    const items = Array.isArray(res?.items) ? res.items : [];
+    if (items.length === 0) {
+      box.textContent = "No nearby metro stops found (within 3km).";
+      return;
+    }
+    box.innerHTML = items
+      .map((s) => `${escapeHtml(s.mode || "-").toUpperCase()} · ${escapeHtml(s.name || s.stop_id || "-")} · ${fmt(s.distance_m, 0)} m`)
+      .join("<br/>");
+
+    // Draw link lines to nearby metro stops.
+    setGeojsonSource("metro_links", {
+      type: "FeatureCollection",
+      features: items
+        .filter((s) => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lon)))
+        .map((s) => ({
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: [[lon, lat], [Number(s.lon), Number(s.lat)]] },
+          properties: { dist_m: s.distance_m },
+        })),
+    });
+    pushAction(`Nearest stops loaded (${items.length}).`, "success", { timeoutMs: 3500 });
+  } catch (e) {
+    console.warn(e);
+    box.textContent = "Failed to load nearest stops.";
+    pushAction("Nearest stops failed.", "warning", { timeoutMs: 4500 });
+  }
+}
+
 function fitToGeojson(geojson) {
   const map = state.map;
   if (!map) return;
@@ -1369,20 +1533,58 @@ async function loadBaselineOutputs() {
 }
 
 async function loadOptionalTransitLayers() {
-  try {
-    const metro = await fetchJson("/geo/stops?modes=metro&limit=50000");
-    setGeojson("stops_metro", metro);
-    state.transit.metro_geojson = metro;
-  } catch (e) {
-    console.warn(e);
+  const map = state.map;
+  if (!map) return;
+  await refreshTransitLayersForViewport({ force: true });
+}
+
+let _transitFetchTimer = null;
+let _lastTransitBboxKey = null;
+
+function bboxParamFromMap(map) {
+  const b = map.getBounds();
+  const minLon = b.getWest();
+  const minLat = b.getSouth();
+  const maxLon = b.getEast();
+  const maxLat = b.getNorth();
+  return `${minLon.toFixed(5)},${minLat.toFixed(5)},${maxLon.toFixed(5)},${maxLat.toFixed(5)}`;
+}
+
+async function refreshTransitLayersForViewport({ force = false } = {}) {
+  const map = state.map;
+  if (!map) return;
+  const bbox = bboxParamFromMap(map);
+  const key = `${bbox}`;
+  if (!force && key === _lastTransitBboxKey) return;
+  _lastTransitBboxKey = key;
+
+  const tasks = [];
+  if (state.layers.metro) {
+    tasks.push(
+      fetchJson(`/geo/stops?modes=metro&bbox=${encodeURIComponent(bbox)}&limit=50000`)
+        .then((metro) => {
+          setGeojson("stops_metro", metro);
+          state.transit.metro_geojson = metro;
+        })
+        .catch((e) => console.warn(e))
+    );
   }
-  try {
-    const yb = await fetchJson("/geo/youbike?limit=50000");
-    setGeojson("youbike", yb);
-    state.transit.youbike_geojson = yb;
-  } catch (e) {
-    console.warn(e);
+  if (state.layers.youbike) {
+    tasks.push(
+      fetchJson(`/geo/youbike?bbox=${encodeURIComponent(bbox)}&limit=50000`)
+        .then((yb) => {
+          setGeojson("youbike", yb);
+          state.transit.youbike_geojson = yb;
+        })
+        .catch((e) => console.warn(e))
+    );
   }
+  if (tasks.length) await Promise.all(tasks);
+}
+
+function scheduleTransitRefresh() {
+  if (_transitFetchTimer) window.clearTimeout(_transitFetchTimer);
+  _transitFetchTimer = window.setTimeout(() => refreshTransitLayersForViewport({ force: false }), 180);
 }
 
 async function runWhatIf() {
@@ -1651,6 +1853,7 @@ function initUIHandlers() {
       state.layers[l.key] = Boolean(e.target.checked);
       updateLayerToggles();
       pushAction(`Layer: ${l.label} ${state.layers[l.key] ? "shown" : "hidden"}`, "info", { timeoutMs: 3500 });
+      if (l.key === "metro" || l.key === "youbike") refreshTransitLayersForViewport({ force: true });
     });
   }
 }
@@ -1690,6 +1893,18 @@ function initMap() {
       },
     });
 
+    map.on("click", "stops-metro-cluster", (e) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ["stops-metro-cluster"] });
+      const clusterId = features?.[0]?.properties?.cluster_id;
+      if (clusterId === undefined || clusterId === null) return;
+      const src = map.getSource("stops_metro");
+      if (!src?.getClusterExpansionZoom) return;
+      src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        if (err) return;
+        map.easeTo({ center: e.lngLat, zoom, duration: 350 });
+      });
+    });
+
     map.addLayer({
       id: "youbike-nearby",
       type: "circle",
@@ -1711,6 +1926,18 @@ function initMap() {
         "circle-stroke-width": 2,
         "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
       },
+    });
+
+    map.on("click", "youbike-cluster", (e) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ["youbike-cluster"] });
+      const clusterId = features?.[0]?.properties?.cluster_id;
+      if (clusterId === undefined || clusterId === null) return;
+      const src = map.getSource("youbike");
+      if (!src?.getClusterExpansionZoom) return;
+      src.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        if (err) return;
+        map.easeTo({ center: e.lngLat, zoom, duration: 350 });
+      });
     });
 
     map.addLayer({
@@ -1848,6 +2075,26 @@ function initMap() {
     updateLayerToggles();
     setStatus("Map ready. Loading config…");
     resolveReady?.();
+  });
+
+  map.on("moveend", () => scheduleTransitRefresh());
+
+  const search = el("librarySearch");
+  const clear = el("librarySearchClear");
+  if (search) {
+    let t = null;
+    search.addEventListener("input", () => {
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(async () => {
+        const rows = await ensureLibraryIndex();
+        renderLibrarySearchResults(rows, search.value);
+      }, 120);
+    });
+  }
+  clear?.addEventListener("click", () => {
+    if (search) search.value = "";
+    const host = el("librarySearchResults");
+    if (host) host.innerHTML = "";
   });
 }
 

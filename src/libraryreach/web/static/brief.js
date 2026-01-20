@@ -50,6 +50,61 @@ function setText(id, text) {
   node.textContent = text;
 }
 
+function slugify(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/(^-|-$)/g, "")
+    .slice(0, 80);
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function buildBriefSharePackZip({ preset, statusText }) {
+  if (!window.JSZip) throw new Error("JSZip not loaded");
+  const zip = new window.JSZip();
+  const meta = {
+    generated_at: new Date().toISOString(),
+    url: window.location.href,
+    preset: preset || null,
+  };
+  zip.file("meta.json", JSON.stringify(meta, null, 2));
+  zip.file("status.txt", String(statusText || "").trim() || "—");
+
+  const assumptions = el("assumptions");
+  if (assumptions) zip.file("assumptions.html", assumptions.innerHTML || assumptions.textContent || "");
+
+  const impact = el("impactSummary");
+  if (impact) zip.file("impact.html", impact.innerHTML || impact.textContent || "");
+
+  try {
+    const health = await (window.lrApi?.getHealth ? window.lrApi.getHealth() : fetchJson("/health"));
+    zip.file("health.json", JSON.stringify(health, null, 2));
+  } catch {
+    // ignore
+  }
+  try {
+    const sources = await (window.lrApi?.fetchJson ? window.lrApi.fetchJson("/sources") : fetchJson("/sources"));
+    zip.file("sources_index.json", JSON.stringify(sources, null, 2));
+  } catch {
+    // ignore
+  }
+
+  const out = await zip.generateAsync({ type: "blob" });
+  const stamp = new Date().toISOString().slice(0, 10);
+  const sc = preset?.scenario ? slugify(preset.scenario) : "baseline";
+  downloadBlob(out, `libraryreach-briefpack-${stamp}-${sc}.zip`);
+}
+
 function fmt(n, digits = 0) {
   const v = Number(n);
   if (!Number.isFinite(v)) return "—";
@@ -290,6 +345,25 @@ async function loadBriefData() {
 function main() {
   initTheme();
   el("printBtn")?.addEventListener("click", () => window.print());
+  el("downloadBriefPack")?.addEventListener("click", async () => {
+    const btn = el("downloadBriefPack");
+    if (!btn) return;
+    btn.disabled = true;
+    const old = btn.textContent;
+    btn.textContent = "打包中…";
+    try {
+      const preset = lrReadPresetFromUrl();
+      await buildBriefSharePackZip({ preset, statusText: el("briefStatus")?.textContent || "" });
+      btn.textContent = "完成";
+      window.setTimeout(() => (btn.textContent = old), 1200);
+    } catch (e) {
+      console.warn(e);
+      btn.textContent = "失敗";
+      window.setTimeout(() => (btn.textContent = old), 1500);
+    } finally {
+      btn.disabled = false;
+    }
+  });
   loadBriefData();
 }
 

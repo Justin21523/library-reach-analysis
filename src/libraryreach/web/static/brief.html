@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body class="home brief">
+    <a class="skip-link" href="#main">跳到主要內容</a>
     <header class="topbar">
       <div class="topbar-inner">
         <a class="brand" href="/">
@@ -26,11 +27,12 @@
           <button id="printBtn" class="btn primary" type="button">列印 / 存成 PDF</button>
           <button id="densityToggle" class="btn subtle" type="button" aria-pressed="false" title="Toggle density">Comfort</button>
           <button id="themeToggle" class="btn subtle" type="button" aria-pressed="false" title="Toggle theme">Light</button>
+          <button id="downloadBriefPack" class="btn subtle" type="button">下載分享包（ZIP）</button>
         </div>
       </div>
     </header>
 
-    <main class="home-main brief-main">
+    <main id="main" class="home-main brief-main">
       <section class="section brief-hero">
         <div class="brief-hero-grid">
           <div>
@@ -202,6 +204,7 @@
     <script src="/static/dataClient.js"></script>
     <script src="/static/sourcesCard.js"></script>
     <script src="/static/density.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="/static/brief.js"></script>
   </body>
 </html>

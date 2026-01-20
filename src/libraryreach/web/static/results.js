@@ -81,6 +81,14 @@ function cssVar(name, fallback = "") {
   }
 }
 
+function slugify(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/(^-|-$)/g, "")
+    .slice(0, 80);
+}
+
 function renderAssumptions(preset) {
   const node = el("resultsAssumptions");
   if (!node) return;
@@ -267,6 +275,17 @@ async function svgToPngBlob(svgEl, { scale = 2 } = {}) {
   return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function downloadChartPng(chartId) {
   const host = el(chartId);
   const svg = host?.querySelector("svg");
@@ -324,12 +343,55 @@ function initChartTools() {
   }
 }
 
+async function buildSharePackZip({ preset, summaryText }) {
+  if (!window.JSZip) throw new Error("JSZip not loaded");
+
+  const zip = new window.JSZip();
+  const meta = {
+    generated_at: new Date().toISOString(),
+    url: window.location.href,
+    preset: preset || null,
+  };
+  zip.file("meta.json", JSON.stringify(meta, null, 2));
+  zip.file("summary.txt", String(summaryText || "").trim() || "—");
+
+  // assumptions + sources
+  try {
+    const health = await fetchJson("/health");
+    zip.file("health.json", JSON.stringify(health, null, 2));
+  } catch {
+    // ignore
+  }
+  try {
+    const sources = await (window.lrApi?.fetchJson ? window.lrApi.fetchJson("/sources") : fetchJson("/sources"));
+    zip.file("sources_index.json", JSON.stringify(sources, null, 2));
+  } catch {
+    // ignore
+  }
+
+  // charts
+  for (const id of ["chartScore", "chartDeserts", "chartOutreach"]) {
+    const host = el(id);
+    const svg = host?.querySelector("svg");
+    if (!svg) continue;
+    const blob = await svgToPngBlob(svg);
+    if (!blob) continue;
+    zip.file(`${id}.png`, blob);
+  }
+
+  const out = await zip.generateAsync({ type: "blob" });
+  const stamp = new Date().toISOString().slice(0, 10);
+  const sc = preset?.scenario ? slugify(preset.scenario) : "baseline";
+  downloadBlob(out, `libraryreach-sharepack-${stamp}-${sc}.zip`);
+}
+
 async function main() {
   initTheme();
   initChartTools();
 
   const preset = lrReadPresetFromUrl();
   let comparePayload = null;
+  const summaryEl = el("resultsSummary");
   if (preset) {
     const consoleLink = el("openConsoleFromResults");
     const briefLink = el("openBriefFromResults");
@@ -338,6 +400,26 @@ async function main() {
     renderAssumptions(preset);
   } else {
     renderAssumptions(null);
+  }
+
+  const packBtn = el("downloadSharePack");
+  if (packBtn) {
+    packBtn.addEventListener("click", async () => {
+      packBtn.disabled = true;
+      const old = packBtn.textContent;
+      packBtn.textContent = "打包中…";
+      try {
+        await buildSharePackZip({ preset, summaryText: summaryEl?.textContent || "" });
+        packBtn.textContent = "完成";
+        window.setTimeout(() => (packBtn.textContent = old), 1200);
+      } catch (e) {
+        console.warn(e);
+        packBtn.textContent = "失敗";
+        window.setTimeout(() => (packBtn.textContent = old), 1500);
+      } finally {
+        packBtn.disabled = false;
+      }
+    });
   }
 
   try {

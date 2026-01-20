@@ -1019,6 +1019,26 @@ select:focus {
   box-shadow: var(--ring);
 }
 
+.skip-link {
+  position: fixed;
+  left: 12px;
+  top: 10px;
+  z-index: 1001;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-160%);
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 :root[data-theme="dark"] .tab.active {
   background: rgba(96, 165, 250, 0.12);
   border-color: rgba(96, 165, 250, 0.22);

@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body class="home results">
+    <a class="skip-link" href="#main">跳到主要內容</a>
     <header class="topbar">
       <div class="topbar-inner">
         <a class="brand" href="/">
@@ -30,7 +31,7 @@
       </div>
     </header>
 
-    <main class="home-main">
+    <main id="main" class="home-main">
       <section class="section">
         <div class="section-title">成果摘要</div>
         <div class="callout">
@@ -58,6 +59,7 @@
           <div class="callout-actions">
             <a id="openConsoleFromResults" class="btn primary" href="/console">用同一組假設打開控制台</a>
             <a id="openBriefFromResults" class="btn" href="/brief">開啟一頁簡報</a>
+            <button id="downloadSharePack" class="btn subtle" type="button">下載分享包（ZIP）</button>
           </div>
         </div>
       </section>
@@ -136,6 +138,7 @@
     <script src="/static/dataClient.js"></script>
     <script src="/static/sourcesCard.js"></script>
     <script src="/static/density.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="/static/results.js"></script>
   </body>
 </html>

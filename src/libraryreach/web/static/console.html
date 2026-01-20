@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#sidebar">Skip to controls</a>
     <div id="layout">
       <aside id="sidebar">
         <div class="header">
@@ -209,6 +210,18 @@
         <div class="foldout" data-foldout="inspector">
           <button class="foldout-header" type="button">Inspector</button>
           <div class="foldout-body">
+            <div class="subheader">Find a library</div>
+            <div class="row">
+              <label class="field" style="flex: 1; min-width: 220px">
+                <span>Search</span>
+                <input id="librarySearch" type="search" placeholder="Name / address / city / district" />
+              </label>
+              <button id="librarySearchClear" class="btn subtle" type="button">Clear</button>
+            </div>
+            <div id="librarySearchResults" class="list" aria-label="Search results"></div>
+            <div class="hint">Tip: click a result to locate it on the map and open details.</div>
+
+            <div class="subheader">Selected</div>
             <div id="inspector" class="muted">Click a library marker.</div>
           </div>
         </div>
