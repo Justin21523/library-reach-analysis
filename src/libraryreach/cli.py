@@ -14,6 +14,13 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("fetch-stops", parents=[common], help="Fetch transit stops (bus + metro) from TDX")
     sub.add_parser("fetch-youbike", parents=[common], help="Fetch YouBike stations from TDX (optional)")
+    fetch_open = sub.add_parser("fetch-open-data", parents=[common], help="Fetch non-TDX Open Data sources (optional)")
+    fetch_open.add_argument(
+        "--only",
+        action="append",
+        default=None,
+        help="Limit to a specific source_id (repeatable). If omitted, fetches all enabled sources.",
+    )
     run_all = sub.add_parser("run-all", parents=[common], help="Run the full Phase 1 pipeline")
     run_all.add_argument("--skip-fetch", action="store_true", help="Skip TDX fetch (use existing stops.csv)")
     daemon = sub.add_parser("daemon", parents=[common], help="Run continuous ingestion + pipeline loop")
@@ -53,6 +60,14 @@ def main(argv: list[str] | None = None) -> None:
         from libraryreach.ingestion.fetch_youbike import fetch_and_write_youbike_stations
 
         fetch_and_write_youbike_stations(settings)
+        return
+
+    if args.command == "fetch-open-data":
+        from libraryreach.ingestion.open_data import fetch_and_write_open_data
+
+        only = getattr(args, "only", None)
+        only_set = {str(x) for x in (only or [])} if only else None
+        fetch_and_write_open_data(settings, only_source_ids=only_set)
         return
 
     if args.command == "validate-catalogs":

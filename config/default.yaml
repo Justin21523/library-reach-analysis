@@ -59,6 +59,36 @@ tdx:
     bike_stations_by_city: /api/basic/v2/Bike/Station/City/{city}
   metro_operator_codes: [TRTC, TYMC, KRTC]
 
+open_data:
+  # Generic ingestion for non-TDX Open Data sources (CKAN, static files, APIs).
+  # These sources are optional and can be enabled incrementally.
+  enable: false
+  # A descriptive UA helps some providers and is useful for audit logs.
+  user_agent: "LibraryReach/0.1 (+https://github.com/)"
+  request_timeout_s: 30
+  # Default throttle between requests across open data sources.
+  min_request_interval_s: 0.5
+  sources:
+    # Example: official library locations dataset (fill URL + enable).
+    - source_id: "opendata_libraries_v1"
+      enabled: false
+      url: ""
+      output_path: "data/raw/open_data/libraries.csv"
+      format: "csv"
+      # Optional extra headers. Use env vars for secrets/tokens if required.
+      headers:
+        accept: "text/csv"
+      # Map of header_name -> ENV_VAR_NAME, e.g. { authorization: "OPENDATA_AUTHORIZATION" }
+      headers_env: {}
+    # Example: population by district/city (fill URL + enable).
+    - source_id: "opendata_population_v1"
+      enabled: false
+      url: ""
+      output_path: "data/raw/open_data/population.csv"
+      format: "csv"
+      headers: {}
+      headers_env: {}
+
 spatial:
   # Baseline metric conversion: equirectangular projection for short-range buffers (<= 1km).
   distance:

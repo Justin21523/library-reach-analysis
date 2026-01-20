@@ -37,6 +37,7 @@ def download_with_cache_headers(
     output_path: Path,
     meta_path: Path,
     timeout_s: int = 30,
+    headers: dict[str, str] | None = None,
 ) -> DownloadResult:
     prev: dict[str, Any] = {}
     if Path(meta_path).exists():
@@ -45,16 +46,16 @@ def download_with_cache_headers(
         except Exception:
             prev = {}
 
-    headers: dict[str, str] = {}
+    req_headers: dict[str, str] = dict(headers or {})
     if isinstance(prev, dict):
         etag = prev.get("etag")
         last_modified = prev.get("last_modified")
         if isinstance(etag, str) and etag:
-            headers["If-None-Match"] = etag
+            req_headers["If-None-Match"] = etag
         if isinstance(last_modified, str) and last_modified:
-            headers["If-Modified-Since"] = last_modified
+            req_headers["If-Modified-Since"] = last_modified
 
-    resp = requests.get(url, headers=headers, timeout=timeout_s)
+    resp = requests.get(url, headers=req_headers, timeout=timeout_s)
     if resp.status_code == 304:
         return DownloadResult(
             status="not_modified",
@@ -89,4 +90,3 @@ def download_with_cache_headers(
         etag=etag_out,
         last_modified=lm_out,
     )
-
