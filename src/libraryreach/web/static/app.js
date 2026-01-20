@@ -167,19 +167,56 @@ const LAYER_REGISTRY = [
     label: "Metro",
     checkboxId: "layerMetro",
     sourceId: "stops_metro",
-    layerIds: ["stops-metro", "stops-metro-label"],
-    eventLayerId: "stops-metro",
+    layerIds: ["stops-metro-cluster", "stops-metro-cluster-count", "stops-metro-point", "stops-metro-label"],
+    eventLayerId: "stops-metro-point",
     renderOrder: 40,
     shortcut: "M",
     cursor: "pointer",
     addSource(map) {
-      map.addSource("stops_metro", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addSource("stops_metro", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+        cluster: true,
+        clusterRadius: 48,
+        clusterMaxZoom: 12,
+      });
     },
     addLayer(map) {
       map.addLayer({
-        id: "stops-metro",
+        id: "stops-metro-cluster",
         type: "circle",
         source: "stops_metro",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-radius": ["step", ["get", "point_count"], 12, 50, 16, 150, 20],
+          "circle-color": mapColor("--map-metro", "rgba(124, 58, 237, 0.9)"),
+          "circle-opacity": 0.45,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
+        },
+      });
+      map.addLayer({
+        id: "stops-metro-cluster-count",
+        type: "symbol",
+        source: "stops_metro",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-size": 12,
+          "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+        },
+        paint: {
+          "text-color": mapColor("--map-label", "rgba(15,23,42,0.92)"),
+          "text-halo-color": mapColor("--map-label-halo", "rgba(255,255,255,0.92)"),
+          "text-halo-width": 1.1,
+        },
+      });
+
+      map.addLayer({
+        id: "stops-metro-point",
+        type: "circle",
+        source: "stops_metro",
+        filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-radius": 6,
           "circle-color": mapColor("--map-metro", "rgba(124, 58, 237, 0.9)"),
@@ -192,6 +229,8 @@ const LAYER_REGISTRY = [
         id: "stops-metro-label",
         type: "symbol",
         source: "stops_metro",
+        minzoom: 12,
+        filter: ["!", ["has", "point_count"]],
         layout: {
           "text-field": ["concat", "M ", ["slice", ["coalesce", ["get", "name"], ""], 0, 6]],
           "text-size": 11,
@@ -227,23 +266,59 @@ const LAYER_REGISTRY = [
     label: "YouBike",
     checkboxId: "layerYoubike",
     sourceId: "youbike",
-    layerIds: ["youbike", "youbike-label"],
-    eventLayerId: "youbike",
+    layerIds: ["youbike-cluster", "youbike-cluster-count", "youbike-point", "youbike-label"],
+    eventLayerId: "youbike-point",
     renderOrder: 50,
     shortcut: "Y",
     cursor: "pointer",
     addSource(map) {
-      map.addSource("youbike", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      map.addSource("youbike", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+        cluster: true,
+        clusterRadius: 52,
+        clusterMaxZoom: 13,
+      });
     },
     addLayer(map) {
       map.addLayer({
-        id: "youbike",
+        id: "youbike-cluster",
         type: "circle",
         source: "youbike",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-radius": ["step", ["get", "point_count"], 11, 50, 15, 150, 19],
+          "circle-color": mapColor("--map-youbike", "rgba(15, 118, 110, 0.9)"),
+          "circle-opacity": 0.4,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
+        },
+      });
+      map.addLayer({
+        id: "youbike-cluster-count",
+        type: "symbol",
+        source: "youbike",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-size": 12,
+          "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+        },
+        paint: {
+          "text-color": mapColor("--map-label", "rgba(15,23,42,0.92)"),
+          "text-halo-color": mapColor("--map-label-halo", "rgba(255,255,255,0.92)"),
+          "text-halo-width": 1.1,
+        },
+      });
+      map.addLayer({
+        id: "youbike-point",
+        type: "circle",
+        source: "youbike",
+        filter: ["!", ["has", "point_count"]],
         paint: {
           "circle-radius": 5,
           "circle-color": mapColor("--map-youbike", "rgba(15, 118, 110, 0.9)"),
-          "circle-opacity": 0.7,
+          "circle-opacity": 0.72,
           "circle-stroke-width": 2,
           "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
         },
@@ -252,6 +327,8 @@ const LAYER_REGISTRY = [
         id: "youbike-label",
         type: "symbol",
         source: "youbike",
+        minzoom: 13,
+        filter: ["!", ["has", "point_count"]],
         layout: {
           "text-field": ["concat", "Y ", ["slice", ["coalesce", ["get", "name"], ""], 0, 6]],
           "text-size": 11,
@@ -308,6 +385,7 @@ const state = {
     metro_geojson: null,
     youbike_geojson: null,
   },
+  spotlight: "all",
 };
 
 function el(id) {
@@ -365,14 +443,22 @@ function applyMapTheme(theme) {
     map.setPaintProperty("outreach", "circle-stroke-color", stroke);
   }
 
-  if (map.getLayer("stops-metro")) {
-    map.setPaintProperty("stops-metro", "circle-color", mapColor("--map-metro", "rgba(124,58,237,0.9)"));
-    map.setPaintProperty("stops-metro", "circle-stroke-color", stroke);
+  if (map.getLayer("stops-metro-point")) {
+    map.setPaintProperty("stops-metro-point", "circle-color", mapColor("--map-metro", "rgba(124,58,237,0.9)"));
+    map.setPaintProperty("stops-metro-point", "circle-stroke-color", stroke);
+  }
+  if (map.getLayer("stops-metro-cluster")) {
+    map.setPaintProperty("stops-metro-cluster", "circle-color", mapColor("--map-metro", "rgba(124,58,237,0.9)"));
+    map.setPaintProperty("stops-metro-cluster", "circle-stroke-color", stroke);
   }
 
-  if (map.getLayer("youbike")) {
-    map.setPaintProperty("youbike", "circle-color", mapColor("--map-youbike", "rgba(15,118,110,0.9)"));
-    map.setPaintProperty("youbike", "circle-stroke-color", stroke);
+  if (map.getLayer("youbike-point")) {
+    map.setPaintProperty("youbike-point", "circle-color", mapColor("--map-youbike", "rgba(15,118,110,0.9)"));
+    map.setPaintProperty("youbike-point", "circle-stroke-color", stroke);
+  }
+  if (map.getLayer("youbike-cluster")) {
+    map.setPaintProperty("youbike-cluster", "circle-color", mapColor("--map-youbike", "rgba(15,118,110,0.9)"));
+    map.setPaintProperty("youbike-cluster", "circle-stroke-color", stroke);
   }
 }
 
@@ -914,12 +1000,43 @@ function setLayerVisibility(layerId, visible) {
   map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
 }
 
+function setLayerVisibilityIfExists(layerId, visible) {
+  const map = state.map;
+  if (!map) return;
+  if (!map.getLayer(layerId)) return;
+  map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+}
+
+function applySpotlightMode() {
+  const mode = state.spotlight || "all";
+  const showAll = mode === "all";
+
+  // Special overlay layers
+  const showHighlights = mode === "highlights" || showAll;
+  const showSelection = mode === "selection" || showAll;
+
+  setLayerVisibilityIfExists("highlights-halo", showHighlights);
+  setLayerVisibilityIfExists("highlights-point", showHighlights);
+  setLayerVisibilityIfExists("selection-halo", showSelection);
+  setLayerVisibilityIfExists("selection-point", showSelection);
+  setLayerVisibilityIfExists("metro-links", showSelection);
+  setLayerVisibilityIfExists("youbike-nearby", showSelection);
+
+  if (showAll) return;
+
+  for (const l of LAYER_REGISTRY) {
+    const ids = Array.isArray(l.layerIds) ? l.layerIds : l.layerId ? [l.layerId] : [];
+    for (const id of ids) setLayerVisibilityIfExists(id, false);
+  }
+}
+
 function updateLayerToggles() {
   for (const l of LAYER_REGISTRY) {
     const ids = Array.isArray(l.layerIds) ? l.layerIds : l.layerId ? [l.layerId] : [];
     for (const id of ids) setLayerVisibility(id, Boolean(state.layers?.[l.key]));
   }
   state.hoverPopup?.remove();
+  applySpotlightMode();
 }
 
 function fmtIsoLocal(iso) {
@@ -1104,6 +1221,7 @@ function setHighlightData(features) {
 function clearHighlight() {
   setHighlightData([]);
   pushAction("Highlights cleared.", "info");
+  applySpotlightMode();
 }
 
 function applyHighlight() {
@@ -1156,6 +1274,7 @@ function applyHighlight() {
   setHighlightData(features);
   pushAction(`Highlight: ${kind} · Top ${features.length}`, "success");
   if (features.length) fitToGeojson({ type: "FeatureCollection", features });
+  applySpotlightMode();
 }
 
 function metersBetween([lon1, lat1], [lon2, lat2]) {
@@ -1462,6 +1581,12 @@ function initUIHandlers() {
   const highlightClear = el("highlightClear");
   highlightApply?.addEventListener("click", () => applyHighlight());
   highlightClear?.addEventListener("click", () => clearHighlight());
+  const spotlight = el("spotlightMode");
+  spotlight?.addEventListener("change", () => {
+    state.spotlight = spotlight.value || "all";
+    applySpotlightMode();
+    pushAction(`Spotlight: ${state.spotlight}`, "info", { timeoutMs: 3500 });
+  });
 
   el("copyLink").addEventListener("click", async () => {
     try {
@@ -1646,7 +1771,7 @@ function initMap() {
       }
     });
 
-    map.on("click", "stops-metro", (e) => {
+    map.on("click", "stops-metro-point", (e) => {
       const f = e.features?.[0];
       const coords = f?.geometry?.coordinates;
       if (!Array.isArray(coords) || coords.length !== 2) return;
@@ -1699,6 +1824,7 @@ function initMap() {
 
       const name = props.name ?? props.stop_id ?? "Metro station";
       pushAction(`Selected metro: ${name} · nearby YouBike ${picked.length}`, "success", { timeoutMs: 6500 });
+      applySpotlightMode();
     });
 
     for (const l of LAYER_REGISTRY) {

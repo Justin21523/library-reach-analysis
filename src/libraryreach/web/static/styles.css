@@ -51,6 +51,7 @@
   --action-dot-error: rgba(225, 29, 72, 0.75);
 
   --chart-text: rgba(15, 23, 42, 0.74);
+  --chart-bar: rgba(31, 90, 166, 0.35);
 
   /* Map palette tokens (separate from UI) */
   --map-score-low: #d55e00;
@@ -106,6 +107,7 @@
   --action-dot-error: rgba(251, 113, 133, 0.75);
 
   --chart-text: rgba(229, 231, 235, 0.84);
+  --chart-bar: rgba(125, 178, 255, 0.28);
 
   --map-stroke: rgba(15, 23, 42, 0.95);
   --map-label: rgba(229, 231, 235, 0.92);
@@ -114,6 +116,21 @@
 
   --panel: var(--surface);
   --panel2: var(--surface-2);
+}
+
+:root[data-density="compact"] {
+  --font-14: 13px;
+  --font-16: 14px;
+  --font-20: 18px;
+  --font-28: 24px;
+  --font-32: 28px;
+  --space-1: 3px;
+  --space-2: 7px;
+  --space-3: 10px;
+  --space-4: 14px;
+  --space-5: 18px;
+  --space-6: 22px;
+  --space-7: 28px;
 }
 
 html,
@@ -600,6 +617,12 @@ select:focus {
   box-shadow: var(--ring);
 }
 
+:root[data-theme="dark"] input:focus,
+:root[data-theme="dark"] select:focus {
+  border-color: rgba(125, 178, 255, 0.45);
+  box-shadow: var(--ring);
+}
+
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select {
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -640,9 +663,13 @@ select:focus {
   box-shadow: none;
 }
 
-.btn:focus {
+.btn:focus-visible {
   outline: none;
   box-shadow: var(--ring);
+}
+
+.btn:focus {
+  outline: none;
 }
 
 .btn:disabled {
@@ -776,9 +803,9 @@ select:focus {
 
 .overlay-card {
   width: min(720px, 100%);
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: var(--shadow-md);
   overflow: hidden;
 }
@@ -835,11 +862,11 @@ select:focus {
 }
 
 .maplibregl-popup-content {
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: var(--shadow-md);
-  color: rgba(15, 23, 42, 0.9);
+  color: var(--text);
   padding: 10px 12px;
   font-family:
     ui-sans-serif,
@@ -851,10 +878,10 @@ select:focus {
 }
 
 :root[data-theme="dark"] .maplibregl-popup-content {
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   box-shadow: none;
-  color: rgba(229, 231, 235, 0.95);
+  color: var(--text);
 }
 
 .maplibregl-popup-tip {
@@ -987,6 +1014,11 @@ select:focus {
   color: rgba(15, 23, 42, 0.9);
 }
 
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
 :root[data-theme="dark"] .tab.active {
   background: rgba(96, 165, 250, 0.12);
   border-color: rgba(96, 165, 250, 0.22);
@@ -1111,6 +1143,10 @@ select:focus {
   box-shadow: var(--ring);
 }
 
+.audience-tab:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+
 .audience-tab.active {
   border-color: rgba(31, 90, 166, 0.28);
   background: rgba(31, 90, 166, 0.1);
@@ -1143,16 +1179,17 @@ select:focus {
 }
 
 .hero-card {
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid var(--border);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   box-shadow: var(--shadow-md);
   padding: 14px 14px 12px 14px;
 }
 
 :root[data-theme="dark"] .hero-card {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   box-shadow: none;
 }
 
@@ -1169,15 +1206,15 @@ select:focus {
 }
 
 .metric {
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 14px;
   padding: 10px 10px 9px 10px;
-  background: rgba(255, 255, 255, 0.75);
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
 }
 
 :root[data-theme="dark"] .metric {
-  border-color: rgba(148, 163, 184, 0.16);
-  background: rgba(2, 6, 23, 0.25);
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 35%, transparent);
 }
 
 .metric-k {
@@ -1233,16 +1270,17 @@ select:focus {
 }
 
 .card {
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: var(--space-4);
   background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   box-shadow: var(--shadow-sm);
 }
 
 :root[data-theme="dark"] .card {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.72);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
   box-shadow: none;
 }
 
@@ -1273,10 +1311,10 @@ select:focus {
 }
 
 .callout {
-  border: 1px solid rgba(31, 90, 166, 0.16);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
   border-radius: 18px;
   padding: var(--space-4);
-  background: linear-gradient(180deg, rgba(31, 90, 166, 0.06), rgba(255, 255, 255, 0.86));
+  background: linear-gradient(180deg, rgba(31, 90, 166, 0.06), color-mix(in srgb, var(--surface) 86%, transparent));
   box-shadow: var(--shadow-md);
 }
 

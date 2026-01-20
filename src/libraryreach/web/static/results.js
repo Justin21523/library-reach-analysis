@@ -71,6 +71,16 @@ function toBuckets(summary) {
   return { low: Number(b.low || 0), mid: Number(b.mid || 0), high: Number(b.high || 0) };
 }
 
+function cssVar(name, fallback = "") {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+    const s = String(v || "").trim();
+    return s || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function renderAssumptions(preset) {
   const node = el("resultsAssumptions");
   if (!node) return;
@@ -117,7 +127,7 @@ function svgBarChart({ labels, values, colors, height = 140 }) {
       const x = pad + i * barW + 10;
       const y = h - pad - 18 - bh;
       const bw = Math.max(18, barW - 20);
-      const fill = colors?.[i] || "rgba(37,99,235,0.6)";
+      const fill = colors?.[i] || cssVar("--chart-bar", "rgba(31,90,166,0.35)");
       const label = labels[i] || "";
       return `
         <rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="10" fill="${fill}"></rect>
@@ -143,7 +153,10 @@ function svgHorizontalBars(rows, { height = 220, valueKey = "count" } = {}) {
       const y = pad + i * rowH;
       return `
         <text x="${pad}" y="${y + 14}" font-size="12" fill="currentColor">${escapeHtml(r.label)}</text>
-        <rect x="240" y="${y + 4}" width="${barW}" height="12" rx="8" fill="rgba(37,99,235,0.35)"></rect>
+        <rect x="240" y="${y + 4}" width="${barW}" height="12" rx="8" fill="${cssVar(
+          "--chart-bar",
+          "rgba(31,90,166,0.35)"
+        )}"></rect>
         <text x="${240 + barW + 8}" y="${y + 14}" font-size="12" fill="currentColor">${v}</text>
       `;
     })
@@ -188,7 +201,11 @@ function renderResultsFromSummary({ summary, note }) {
       svgBarChart({
         labels: ["Low", "Mid", "High"],
         values: [buckets.low, buckets.mid, buckets.high],
-        colors: ["rgba(239,68,68,0.65)", "rgba(245,158,11,0.7)", "rgba(34,197,94,0.6)"],
+        colors: [
+          cssVar("--map-score-low", "#d55e00"),
+          cssVar("--map-score-mid", "#e69f00"),
+          cssVar("--map-score-high", "#009e73"),
+        ],
         height: 170,
       })
     );
