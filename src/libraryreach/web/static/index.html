@@ -20,7 +20,7 @@
         <nav class="tabs" aria-label="Primary">
           <a class="tab" href="#overview">總覽</a>
           <a class="tab" href="#story">故事線</a>
-          <a class="tab" href="#method">方法</a>
+          <a class="tab" href="/method">方法</a>
           <a class="tab" href="#results">成果</a>
           <a class="tab" href="#whatif">情境模擬</a>
           <a class="tab" href="/brief">一頁簡報</a>
@@ -90,12 +90,18 @@
                 <div id="mCities" class="metric-v">—</div>
                 <div id="mhCities" class="metric-h">可切換城市清單</div>
               </div>
+              <div class="metric">
+                <div id="mkYoubike" class="metric-k">YouBike</div>
+                <div id="mYoubike" class="metric-v">—</div>
+                <div id="mhYoubike" class="metric-h">站點數（可選圖層）</div>
+              </div>
             </div>
             <div class="hero-note">
               提示：若尚未跑 pipeline，首頁仍可說明方法與流程；控制台會顯示缺少輸出檔案的原因。
             </div>
           </div>
         </div>
+        <div id="sourcesCardHome" class="sources-card-slot"></div>
       </section>
 
       <section id="start" class="section">
@@ -170,30 +176,6 @@
           <div class="callout-actions">
             <a class="btn primary" href="/console">做情境模擬</a>
             <a class="btn" href="/brief">產出一頁簡報</a>
-          </div>
-        </div>
-      </section>
-
-      <section id="method" class="section">
-        <div class="section-title">方法（可解釋、可溝通）</div>
-        <div class="cards">
-          <div class="card">
-            <div class="card-title">1) 基礎可達性分數</div>
-            <div class="card-body">
-              以館點周邊 500m / 1000m 緩衝區計算站點密度，依交通模式與距離權重加總為 0–100 分；分數高代表「更容易靠公共運輸抵達」。
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">2) Access deserts</div>
-            <div class="card-body">
-              用格網掃描城市範圍，估計每個 cell 的「最佳可達性」並與門檻比較，標示出服務落差熱點。
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">3) 外展點位建議</div>
-            <div class="card-body">
-              在 deserts 周邊依「能覆蓋落差」與「場址本身可達性」打分，產出 Top N 候選點位，支援場域合作與政策溝通。
-            </div>
           </div>
         </div>
       </section>
@@ -275,6 +257,8 @@
 
     <script src="/static/preset.js"></script>
     <script src="/static/narrative.js"></script>
+    <script src="/static/dataClient.js"></script>
+    <script src="/static/sourcesCard.js"></script>
     <script src="/static/home.js"></script>
   </body>
 </html>

@@ -38,6 +38,7 @@ function initTheme() {
 }
 
 async function fetchJson(path) {
+  if (window.lrApi?.fetchJson) return window.lrApi.fetchJson(path);
   const res = await fetch(path);
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json();
@@ -75,22 +76,22 @@ function setActiveAudience(audience) {
       blurb: "這是公共溝通版：用最少術語解釋「到得了」的差異，並提供可以採取的行動方向。",
       ctaPrimary: { text: "先看一頁簡報", href: "/brief" },
       ctaSecondary: { text: "或進控制台探索", href: "/console" },
-      mk: { score: "平均可達性", deserts: "服務落差", outreach: "可行外展", cities: "城市覆蓋" },
-      mh: { score: "0–100（越高越好）", deserts: "deserts（越少越好）", outreach: "候選點位清單", cities: "可切換城市" },
+      mk: { score: "平均可達性", deserts: "服務落差", outreach: "可行外展", cities: "城市覆蓋", youbike: "YouBike" },
+      mh: { score: "0–100（越高越好）", deserts: "deserts（越少越好）", outreach: "候選點位清單", cities: "可切換城市", youbike: "站點數（可選圖層）" },
     },
     library: {
       blurb: "這是館務/第一線版：重點在於服務落差的分布、外展候選點位與可快速落地的合作方案。",
       ctaPrimary: { text: "進控制台做情境模擬", href: "/console" },
       ctaSecondary: { text: "需要溝通素材？一頁簡報", href: "/brief" },
-      mk: { score: "館點可達性", deserts: "落差熱點", outreach: "外展清單", cities: "適用城市" },
-      mh: { score: "用於找服務不便的館點", deserts: "用於規劃外展優先順序", outreach: "Top N 候選點位", cities: "可分城市檢視" },
+      mk: { score: "館點可達性", deserts: "落差熱點", outreach: "外展清單", cities: "適用城市", youbike: "YouBike" },
+      mh: { score: "用於找服務不便的館點", deserts: "用於規劃外展優先順序", outreach: "Top N 候選點位", cities: "可分城市檢視", youbike: "站點數（可選圖層）" },
     },
     policy: {
       blurb: "這是決策/跨局處版：重點在於公平性指標、落差的可視化，以及可分享、可追溯的政策假設與影響摘要。",
       ctaPrimary: { text: "成果頁（投影簡報）", href: "/results" },
       ctaSecondary: { text: "做 what-if 並分享連結", href: "/console" },
-      mk: { score: "整體平均分數", deserts: "公平性落差", outreach: "補強方案", cities: "涵蓋範圍" },
-      mh: { score: "用於溝通方向與資源配置", deserts: "可用於追蹤改善", outreach: "可啟動合作討論", cities: "可控管範圍" },
+      mk: { score: "整體平均分數", deserts: "公平性落差", outreach: "補強方案", cities: "涵蓋範圍", youbike: "YouBike" },
+      mh: { score: "用於溝通方向與資源配置", deserts: "可用於追蹤改善", outreach: "可啟動合作討論", cities: "可控管範圍", youbike: "站點數（交通補充）" },
     },
   }[a];
 
@@ -118,10 +119,12 @@ function setActiveAudience(audience) {
   setText("mkDeserts", map.mk.deserts);
   setText("mkOutreach", map.mk.outreach);
   setText("mkCities", map.mk.cities);
+  setText("mkYoubike", map.mk.youbike);
   setText("mhScore", map.mh.score);
   setText("mhDeserts", map.mh.deserts);
   setText("mhOutreach", map.mh.outreach);
   setText("mhCities", map.mh.cities);
+  setText("mhYoubike", map.mh.youbike);
 }
 
 function initAudience() {
@@ -186,7 +189,10 @@ function fmtIso(iso) {
 async function loadHomeMetrics() {
   const status = el("homeStatus");
   try {
-    const [health, cfg] = await Promise.all([fetchJson("/health"), fetchJson("/control/config")]);
+    const [health, cfg] = await Promise.all([
+      window.lrApi?.getHealth ? window.lrApi.getHealth() : fetchJson("/health"),
+      fetchJson("/control/config"),
+    ]);
     const cities = cfg?.aoi?.cities || [];
     setText("mCities", String(cities.length || "—"));
 
@@ -200,6 +206,7 @@ async function loadHomeMetrics() {
       setText("mScore", "—");
       setText("mDeserts", "—");
       setText("mOutreach", "—");
+      setText("mYoubike", "—");
       if (status) {
         status.textContent =
           "目前尚未偵測到完整 pipeline 輸出（libraries/deserts/outreach）。你仍可閱讀方法，或直接進入控制台查看缺少的檔案。";
@@ -210,11 +217,17 @@ async function loadHomeMetrics() {
     const qs = new URLSearchParams();
     qs.set("scenario", cfg?.meta?.scenario || "weekday");
     for (const c of cities) qs.append("cities", c);
-    const baselineRes = await fetchJson(`/analysis/baseline-summary?${qs.toString()}`);
+    const baselineRes = await (window.lrApi?.getBaselineSummary
+      ? window.lrApi.getBaselineSummary({ scenario: cfg?.meta?.scenario || "weekday", cities })
+      : fetchJson(`/analysis/baseline-summary?${qs.toString()}`));
     const m = baselineRes?.summary?.metrics || {};
     setText("mScore", m.avg_accessibility_score === null || m.avg_accessibility_score === undefined ? "—" : fmt(m.avg_accessibility_score, 1));
     setText("mDeserts", fmt(m.deserts_count, 0));
     setText("mOutreach", fmt(m.outreach_count, 0));
+    setText(
+      "mYoubike",
+      m.youbike_station_count === null || m.youbike_station_count === undefined ? "—" : fmt(m.youbike_station_count, 0)
+    );
     if (status) {
       const ing = health?.ingestion_status || {};
       const rl = ing?.rate_limit || {};
@@ -240,6 +253,14 @@ async function loadHomeMetrics() {
       status.textContent = `系統狀態：已載入 baseline 摘要，可直接進入控制台做情境模擬。${modeNote ? `（${modeNote}）` : ""}${extra}`;
     }
 
+    try {
+      if (window.lrRenderSourcesCard) {
+        window.lrRenderSourcesCard("sourcesCardHome", { title: "資料來源（本次輸出依據）", health });
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
     return { cfg, health, baseline: baselineRes };
   } catch (e) {
     if (status) status.textContent = "無法載入系統狀態（API 尚未啟動或路由不可用）。";
@@ -250,12 +271,13 @@ async function loadHomeMetrics() {
 
 function initTabs() {
   const tabs = Array.from(document.querySelectorAll(".tabs .tab"));
-  const sections = tabs.map((t) => document.querySelector(t.getAttribute("href"))).filter(Boolean);
+  const hashTabs = tabs.filter((t) => (t.getAttribute("href") || "").startsWith("#"));
+  const sections = hashTabs.map((t) => document.querySelector(t.getAttribute("href"))).filter(Boolean);
   const byId = new Map(sections.map((s) => [s.id, s]));
 
   function setActive(hash) {
     const id = (hash || "#overview").replace("#", "");
-    for (const t of tabs) t.classList.toggle("active", t.getAttribute("href") === `#${id}`);
+    for (const t of hashTabs) t.classList.toggle("active", t.getAttribute("href") === `#${id}`);
   }
 
   function onHashChange() {
