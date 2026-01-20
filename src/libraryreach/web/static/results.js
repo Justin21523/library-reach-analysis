@@ -29,6 +29,7 @@ function initTheme() {
 }
 
 async function fetchJson(path, options = {}) {
+  if (window.lrApi?.fetchJson) return window.lrApi.fetchJson(path, options);
   const res = await fetch(path, options);
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json();
@@ -169,9 +170,16 @@ function renderResultsFromSummary({ summary, note }) {
 
   const summaryEl = el("resultsSummary");
   if (summaryEl) {
+    const yb = m.youbike_station_count;
+    const ybText = yb === null || yb === undefined ? "—" : fmt(yb, 0);
     summaryEl.textContent =
       `${note} 平均可達性 ${m.avg_accessibility_score === null || m.avg_accessibility_score === undefined ? "—" : fmt(m.avg_accessibility_score, 1)}，` +
       `deserts ${fmt(m.deserts_count, 0)}，外展建議 ${fmt(m.outreach_count, 0)}。`;
+    if (yb !== null && yb !== undefined) {
+      summaryEl.textContent += ` YouBike 站點 ${ybText}。`;
+    } else {
+      summaryEl.textContent += ` YouBike 站點 ${ybText}（可在設定啟用）。`;
+    }
   }
 
   const chart1 = el("chartScore");
@@ -317,6 +325,13 @@ async function main() {
 
   try {
     const health = await fetchJson("/health");
+    try {
+      if (window.lrRenderSourcesCard) {
+        window.lrRenderSourcesCard("sourcesCardResults", { title: "資料來源（可追溯）", health });
+      }
+    } catch (e) {
+      console.warn(e);
+    }
     const files = health?.files || {};
     const ok =
       Boolean(files.libraries_scored) &&
@@ -331,15 +346,17 @@ async function main() {
     }
 
     if (preset) {
-      const compare = await fetchJson("/analysis/compare", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          scenario: preset.scenario,
-          cities: preset.cities,
-          config_patch: preset.patch || {},
-        }),
-      });
+      const compare = await (window.lrApi?.postCompare
+        ? window.lrApi.postCompare({ scenario: preset.scenario, cities: preset.cities, configPatch: preset.patch || {} })
+        : fetchJson("/analysis/compare", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              scenario: preset.scenario,
+              cities: preset.cities,
+              config_patch: preset.patch || {},
+            }),
+          }));
       comparePayload = compare;
       renderResultsFromSummary({ summary: compare?.whatif, note: "目前顯示 preset 的 what-if 結果。" });
       const narrative = el("resultsNarrative");
@@ -350,10 +367,14 @@ async function main() {
     }
 
     const cfg = await fetchJson("/control/config");
-    const qs = new URLSearchParams();
-    qs.set("scenario", cfg?.meta?.scenario || "weekday");
-    for (const c of cfg?.aoi?.cities || []) qs.append("cities", c);
-    const base = await fetchJson(`/analysis/baseline-summary?${qs.toString()}`);
+    const base = await (window.lrApi?.getBaselineSummary
+      ? window.lrApi.getBaselineSummary({ scenario: cfg?.meta?.scenario || "weekday", cities: cfg?.aoi?.cities || [] })
+      : (async () => {
+          const qs = new URLSearchParams();
+          qs.set("scenario", cfg?.meta?.scenario || "weekday");
+          for (const c of cfg?.aoi?.cities || []) qs.append("cities", c);
+          return fetchJson(`/analysis/baseline-summary?${qs.toString()}`);
+        })());
     renderResultsFromSummary({ summary: base?.summary, note: "目前顯示 pipeline baseline。" });
   } catch (e) {
     console.warn(e);

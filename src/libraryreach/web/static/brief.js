@@ -38,6 +38,7 @@ function initTheme() {
 }
 
 async function fetchJson(path, options = {}) {
+  if (window.lrApi?.fetchJson) return window.lrApi.fetchJson(path, options);
   const res = await fetch(path, options);
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json();
@@ -177,7 +178,10 @@ async function loadBriefData() {
       else assumptions.innerHTML = describeAssumptions(preset);
     }
 
-    const [health, cfg] = await Promise.all([fetchJson("/health"), fetchJson("/control/config")]);
+    const [health, cfg] = await Promise.all([
+      window.lrApi?.getHealth ? window.lrApi.getHealth() : fetchJson("/health"),
+      fetchJson("/control/config"),
+    ]);
     const scenario = preset?.scenario || cfg?.meta?.scenario || "weekday";
     setText("scenarioName", scenario);
 
@@ -206,15 +210,17 @@ async function loadBriefData() {
 
     if (preset) {
       try {
-        const compare = await fetchJson("/analysis/compare", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            scenario: preset.scenario,
-            cities: preset.cities,
-            config_patch: preset.patch || {},
-          }),
-        });
+        const compare = await (window.lrApi?.postCompare
+          ? window.lrApi.postCompare({ scenario: preset.scenario, cities: preset.cities, configPatch: preset.patch || {} })
+          : fetchJson("/analysis/compare", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                scenario: preset.scenario,
+                cities: preset.cities,
+                config_patch: preset.patch || {},
+              }),
+            }));
         comparePayload = compare;
         const m = compare?.whatif?.metrics || {};
         setText("bScore", m.avg_accessibility_score === null || m.avg_accessibility_score === undefined ? "—" : fmt(m.avg_accessibility_score, 1));
@@ -234,10 +240,14 @@ async function loadBriefData() {
       }
     } else {
       try {
-        const qs = new URLSearchParams();
-        qs.set("scenario", scenario);
-        for (const c of cfg?.aoi?.cities || []) qs.append("cities", c);
-        const base = await fetchJson(`/analysis/baseline-summary?${qs.toString()}`);
+        const base = await (window.lrApi?.getBaselineSummary
+          ? window.lrApi.getBaselineSummary({ scenario, cities: cfg?.aoi?.cities || [] })
+          : (async () => {
+              const qs = new URLSearchParams();
+              qs.set("scenario", scenario);
+              for (const c of cfg?.aoi?.cities || []) qs.append("cities", c);
+              return fetchJson(`/analysis/baseline-summary?${qs.toString()}`);
+            })());
         const m = base?.summary?.metrics || {};
         setText("bScore", m.avg_accessibility_score === null || m.avg_accessibility_score === undefined ? "—" : fmt(m.avg_accessibility_score, 1));
         setText("bDeserts", fmt(m.deserts_count, 0));
@@ -254,6 +264,14 @@ async function loadBriefData() {
 
     const impact = el("impactSummary");
     if (impact) impact.innerHTML = impactHtml;
+
+    try {
+      if (window.lrRenderSourcesCard) {
+        window.lrRenderSourcesCard("sourcesCardBrief", { title: "資料來源（本次輸出依據）", health });
+      }
+    } catch (e) {
+      console.warn(e);
+    }
 
     lrInitAudienceTabs("briefAudience", {
       onChange: () => {

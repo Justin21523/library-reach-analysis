@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LibraryReach · 方法</title>
+    <meta name="description" content="LibraryReach 方法說明：可解釋的交通可達性分數、deserts 與外展建議。" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body class="home">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-text">
+            <div class="brand-title">LibraryReach</div>
+            <div class="brand-subtitle">公共服務可達性 × 外展規劃</div>
+          </div>
+        </a>
+        <nav class="tabs" aria-label="Primary">
+          <a class="tab" href="/#overview">總覽</a>
+          <a class="tab" href="/#story">故事線</a>
+          <a class="tab active" href="/method" aria-current="page">方法</a>
+          <a class="tab" href="/#results">成果</a>
+          <a class="tab" href="/#whatif">情境模擬</a>
+          <a class="tab" href="/brief">一頁簡報</a>
+        </nav>
+        <div class="topbar-actions">
+          <a class="btn subtle" href="/results">成果頁</a>
+          <a class="btn primary" href="/console">進入控制台</a>
+          <button id="themeToggle" class="btn subtle" type="button" aria-pressed="false" title="Toggle theme">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="home-main">
+      <section class="section">
+        <div class="section-title">方法（可解釋、可溝通）</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">1) 基礎可達性分數</div>
+            <div class="card-body">
+              以館點周邊 500m / 1000m 緩衝區計算站點密度，依交通模式與距離權重加總為 0–100 分；分數高代表「更容易靠公共運輸抵達」。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">2) Access deserts</div>
+            <div class="card-body">
+              用格網掃描城市範圍，估計每個 cell 的「最佳可達性」並與門檻比較，標示出服務落差熱點（desert cells）。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">3) 外展點位建議</div>
+            <div class="card-body">
+              在 deserts 周邊依「能覆蓋落差」與「場址本身可達性」打分，產出 Top N 候選點位，支援場域合作與政策溝通。
+            </div>
+          </div>
+        </div>
+
+        <div class="callout" style="margin-top: 14px">
+          <div class="callout-title">如何用它做簡報？</div>
+          <div class="callout-body">
+            你可以先用控制台做 what-if，系統會把「參數假設 → 指標影響」轉成可讀的摘要，並支援用 URL 分享同一組假設到「一頁簡報 / 成果頁」。
+          </div>
+          <div class="callout-actions">
+            <a class="btn primary" href="/console">開始做情境模擬</a>
+            <a class="btn" href="/brief">開啟一頁簡報</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">資料來源與可追溯性</div>
+        <div id="sourcesCardMethod" class="sources-card-slot"></div>
+      </section>
+    </main>
+
+    <script src="/static/dataClient.js"></script>
+    <script src="/static/sourcesCard.js"></script>
+    <script src="/static/method.js"></script>
+  </body>
+</html>
+

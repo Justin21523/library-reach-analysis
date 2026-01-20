@@ -43,6 +43,31 @@ def _load_optional_json(path: Path) -> dict[str, Any] | None:
         return None
     return data if isinstance(data, dict) else None
 
+
+def _sources_index_summary(settings: dict[str, Any]) -> dict[str, Any] | None:
+    raw_dir = _raw_dir(settings)
+    idx = _load_optional_json(raw_dir / "sources_index.json")
+    if not idx:
+        return None
+    rows: list[dict[str, Any]] = []
+    for s in idx.get("sources", []) or []:
+        if not isinstance(s, dict):
+            continue
+        checksum = s.get("checksum_sha256")
+        checksum_short = None
+        if isinstance(checksum, str) and checksum:
+            checksum_short = checksum[:8]
+        rows.append(
+            {
+                "source_id": s.get("source_id"),
+                "fetched_at": s.get("fetched_at"),
+                "status": s.get("status"),
+                "checksum_sha256_short": checksum_short,
+                "output_path": s.get("output_path"),
+            }
+        )
+    return {"generated_at": idx.get("generated_at"), "sources": rows}
+
 def _safe_records(df: pd.DataFrame) -> list[dict[str, Any]]:
     return df.where(pd.notnull(df), None).to_dict(orient="records")
 
@@ -128,6 +153,11 @@ def results() -> FileResponse:
     return FileResponse(STATIC_DIR / "results.html")
 
 
+@app.get("/method")
+def method() -> FileResponse:
+    return FileResponse(STATIC_DIR / "method.html")
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
@@ -146,6 +176,7 @@ def health() -> dict[str, Any]:
         "qa": qa,
         "ingestion_status": ingestion_status,
         "stops_meta": stops_meta,
+        "sources_index": _sources_index_summary(settings),
         "files": {
             "libraries_scored": (p / "libraries_scored.csv").exists(),
             "libraries_explain": (p / "libraries_explain.json").exists(),
@@ -186,6 +217,7 @@ def meta() -> dict[str, Any]:
         "qa": load_qa_report(p),
         "ingestion_status": _load_optional_json(raw_dir / "tdx" / "ingestion_status.json"),
         "stops_meta": _load_optional_json(raw_dir / "tdx" / "stops.meta.json"),
+        "sources_index": _sources_index_summary(settings),
     }
 
 
@@ -215,6 +247,9 @@ def reports_latest() -> dict[str, Any]:
     stops_meta = _load_optional_json(raw_dir / "tdx" / "stops.meta.json")
     if stops_meta is not None:
         reports["stops_meta"] = stops_meta
+    sources_index = _sources_index_summary(settings)
+    if sources_index is not None:
+        reports["sources_index"] = sources_index
 
     qa_json = p / "qa_report.json"
     qa_md = p / "qa_report.md"
@@ -236,6 +271,24 @@ def reports_latest() -> dict[str, Any]:
         reports["catalog_validation_md"] = cat_md.read_text(encoding="utf-8")
 
     return reports
+
+
+@app.get("/sources")
+def sources_index(response: Response) -> dict[str, Any]:
+    settings = _settings_for_scenario(DEFAULT_SCENARIO)
+    raw_dir = _raw_dir(settings)
+    path = raw_dir / "sources_index.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Missing sources_index.json (run ingestion first)")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to parse sources_index.json")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=500, detail="Invalid sources_index.json format")
+
+    response.headers["ETag"] = _etag(json.dumps({"mtime": path.stat().st_mtime, "size": path.stat().st_size}))
+    return data
 
 
 @app.post("/analysis/whatif")
@@ -348,6 +401,30 @@ def analysis_baseline_summary(
             cities=selected_cities,
             top_n_outreach=int(top_n_outreach),
         )
+
+    # Optional extra layers should be exposed via summary metrics (so UI can stay lightweight).
+    summary.setdefault("metrics", {})["youbike_station_count"] = None
+    summary.setdefault("metrics", {})["youbike_station_count_by_city"] = None
+    try:
+        raw_dir = _raw_dir(settings)
+        youbike_path = raw_dir / "tdx" / "youbike_stations.csv"
+        if youbike_path.exists():
+            yb = pd.read_csv(youbike_path)
+            if "city" in yb.columns:
+                yb_city = yb["city"].astype(str)
+                if selected_cities:
+                    yb = yb[yb_city.isin([str(c) for c in selected_cities])].copy()
+                by_city = yb["city"].astype(str).value_counts().to_dict()
+            else:
+                by_city = {}
+            total = int(len(yb))
+            summary["metrics"]["youbike_station_count"] = total
+            summary["metrics"]["youbike_station_count_by_city"] = {
+                str(k): int(v) for k, v in (by_city or {}).items()
+            }
+    except Exception:
+        # Optional extras must not break baseline summaries.
+        pass
 
     return {
         "generated_at": utc_now_iso(),
