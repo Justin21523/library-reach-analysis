@@ -76,6 +76,15 @@ def _etag(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _equirect_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    import math
+
+    rad = math.pi / 180.0
+    x = (lon2 - lon1) * rad * math.cos(((lat1 + lat2) / 2.0) * rad)
+    y = (lat2 - lat1) * rad
+    return float(math.sqrt(x * x + y * y) * 6371000.0)
+
+
 app = FastAPI(title="LibraryReach API", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -930,3 +939,50 @@ def youbike_geojson(
     if bb:
         out["bbox"] = [bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat]
     return out
+
+
+@app.get("/analysis/nearest-stops")
+def nearest_stops(
+    lat: float,
+    lon: float,
+    modes: list[str] = Query(default=["metro"]),
+    k: int = 8,
+    max_distance_m: float = 3000.0,
+) -> dict[str, Any]:
+    settings = _settings_for_scenario(DEFAULT_SCENARIO)
+    raw_dir = _raw_dir(settings)
+    path = raw_dir / "tdx" / "stops.csv"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="stops.csv not found (run ingestion)")
+    df = pd.read_csv(path)
+    if "mode" in df.columns and modes:
+        mode_set = {str(m) for m in modes}
+        df = df[df["mode"].astype(str).isin(mode_set)].copy()
+    df = df.dropna(subset=["lat", "lon"]).copy()
+    if df.empty:
+        return {"items": []}
+    # Keep k small for UI; compute distances in Python loop (fast enough for this k).
+    rows = []
+    for r in _safe_records(df):
+        try:
+            d = _equirect_m(float(lat), float(lon), float(r["lat"]), float(r["lon"]))
+        except Exception:
+            continue
+        if d > float(max_distance_m):
+            continue
+        rows.append({**r, "distance_m": d})
+    rows.sort(key=lambda x: float(x.get("distance_m", 1e18)))
+    out = []
+    for r in rows[: max(1, int(k))]:
+        out.append(
+            {
+                "stop_id": r.get("stop_id"),
+                "name": r.get("name"),
+                "mode": r.get("mode"),
+                "city": r.get("city"),
+                "lat": r.get("lat"),
+                "lon": r.get("lon"),
+                "distance_m": round(float(r.get("distance_m", 0.0)), 1),
+            }
+        )
+    return {"items": out}

@@ -188,6 +188,16 @@ def run_phase1(settings: dict[str, Any]) -> None:
         file_meta(Path(str(meta.get("config_path"))) if meta.get("config_path") else Path("config/default.yaml")),
         file_meta(Path(str(meta.get("scenario_path"))) if meta.get("scenario_path") else Path("config/scenarios/weekday.yaml")),
     ]
+    # If a libraries Open Data raw file exists (as configured), include it for traceability.
+    try:
+        build_cfg = (settings.get("catalog_build", {}) or {}).get("libraries", {}) or {}
+        raw_path = str(build_cfg.get("raw_path") or "").strip()
+        if raw_path:
+            raw_p = Path(settings["paths"]["root"]) / raw_path
+            if raw_p.exists():
+                input_sources.append(file_meta(raw_p))
+    except Exception:
+        pass
     output_files = [
         file_meta(processed_dir / "libraries_scored.csv"),
         file_meta(processed_dir / "libraries_explain.json"),

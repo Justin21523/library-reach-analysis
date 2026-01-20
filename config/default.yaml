@@ -89,6 +89,35 @@ open_data:
       headers: {}
       headers_env: {}
 
+catalog_build:
+  # Build project-owned catalogs from raw ingestion outputs.
+  libraries:
+    # If set, uses this Open Data source_id from sources_index.json; otherwise uses `raw_path` below.
+    open_data_source_id: "opendata_libraries_v1"
+    # Optional explicit raw path override (relative to repo root).
+    raw_path: ""
+    # Output path (project-owned catalog consumed by pipeline).
+    output_path: "data/catalogs/libraries.csv"
+    # Column mapping for raw files -> canonical schema.
+    # Canonical required columns: id,name,address,lat,lon,city,district
+    columns:
+      id: "id"
+      name: "name"
+      address: "address"
+      lat: "lat"
+      lon: "lon"
+      city: "city"
+      district: "district"
+      phone: "phone"
+      website: "website"
+      library_system: "library_system"
+      branch_type: "branch_type"
+      notes: "notes"
+    # Deduping strategy
+    dedupe:
+      # Deduplicate by (name,address,city,district). Also merge near-duplicate coords within this distance (meters).
+      near_distance_m: 30
+
 spatial:
   # Baseline metric conversion: equirectangular projection for short-range buffers (<= 1km).
   distance:

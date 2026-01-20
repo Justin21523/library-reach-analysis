@@ -34,6 +34,7 @@ def _build_parser() -> argparse.ArgumentParser:
     daemon.add_argument("--failure-backoff-s", type=float, default=300.0, help="Sleep after a failed cycle")
     daemon.add_argument("--lock-file", default=None, help="Lock file path to avoid duplicate daemons")
     sub.add_parser("validate-catalogs", parents=[common], help="Validate catalog CSVs and write a report")
+    sub.add_parser("build-libraries-catalog", parents=[common], help="Build catalogs/libraries.csv from Open Data raw")
     sub.add_parser("api-info", parents=[common], help="Print API run instructions")
     return parser
 
@@ -79,6 +80,12 @@ def main(argv: list[str] | None = None) -> None:
         outreach = load_outreach_candidates_catalog(settings)
         report = validate_catalogs(settings, libraries=libraries, outreach_candidates=outreach, write_report=True)
         print(format_validation_summary(report))
+        return
+
+    if args.command == "build-libraries-catalog":
+        from libraryreach.catalogs.build_libraries import build_libraries_catalog
+
+        build_libraries_catalog(settings)
         return
 
     if args.command == "run-all":
