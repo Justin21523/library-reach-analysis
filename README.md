@@ -2,6 +2,8 @@
 
 LibraryReach is a library accessibility and outreach planning platform that applies transit analytics to public service planning.
 
+For a screenshot-first showcase and demo narrative, see `READMD.md`.
+
 Phase 1 focuses on an explainable baseline: **transit stop density within 500m/1km buffers** around each library branch, plus grid-based "access desert" detection and outreach site recommendations.
 
 ## Quickstart
