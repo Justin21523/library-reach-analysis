@@ -7,10 +7,11 @@
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
+  <body class="console">
     <a class="skip-link" href="#sidebar">Skip to controls</a>
     <div id="layout">
       <aside id="sidebar">
+        <button id="sheetHandle" class="sheet-handle" type="button" aria-label="Resize control panel"></button>
         <div class="header">
           <div class="header-top">
             <div>
@@ -60,17 +61,19 @@
             <div class="subheader">Cities</div>
             <div id="cities" class="checkbox-grid"></div>
 
-            <div class="subheader">Layers</div>
-            <div class="checkbox-grid">
-              <label class="check"><input id="layerLibraries" type="checkbox" checked />Libraries (L)</label>
-              <label class="check"><input id="layerDeserts" type="checkbox" checked />Deserts (D)</label>
-              <label class="check"><input id="layerOutreach" type="checkbox" checked />Outreach (O)</label>
-              <label class="check"><input id="layerMetro" type="checkbox" />Metro stations (M)</label>
-              <label class="check"><input id="layerYoubike" type="checkbox" />YouBike stations (Y)</label>
-            </div>
-            <div class="hint">
-              Tip: use layers to read the story. Metro/YouBike layers depend on ingestion outputs (TDX).
-            </div>
+          <div class="subheader">Layers</div>
+          <div class="checkbox-grid">
+            <label class="check"><input id="layerLibraries" type="checkbox" checked />Libraries (L)</label>
+            <label class="check"><input id="layerDeserts" type="checkbox" checked />Deserts (D)</label>
+            <label class="check"><input id="layerOutreach" type="checkbox" checked />Outreach (O)</label>
+            <label class="check"><input id="layerMetro" type="checkbox" />Metro stations (M)</label>
+            <label class="check"><input id="layerYoubike" type="checkbox" />YouBike stations (Y)</label>
+          </div>
+          <div class="hint-chips" aria-label="Layer tips">
+            <div class="hint-chip">Shortcut: L / D / O / M / Y</div>
+            <div class="hint-chip">Zoom in to see station labels</div>
+            <div class="hint-chip">Metro/YouBike depend on TDX ingestion</div>
+          </div>
           </div>
         </div>
 
@@ -98,14 +101,22 @@
             <div class="row">
               <label class="field" style="flex: 1">
                 <span>Spotlight mode</span>
-                <select id="spotlightMode">
+                <div id="spotlightSegmented" class="segmented" role="group" aria-label="Spotlight mode">
+                  <button type="button" data-value="all" aria-pressed="true">All</button>
+                  <button type="button" data-value="highlights" aria-pressed="false">Highlights</button>
+                  <button type="button" data-value="selection" aria-pressed="false">Selection</button>
+                </div>
+                <select id="spotlightMode" class="sr-only" aria-hidden="true" tabindex="-1">
                   <option value="all" selected>All layers</option>
                   <option value="highlights">Highlights only</option>
                   <option value="selection">Selection only</option>
                 </select>
               </label>
             </div>
-            <div class="hint">This highlights the most relevant points for quick briefings and projection.</div>
+            <div class="hint-chips" aria-label="Spotlight tips">
+              <div class="hint-chip">Quick projection mode</div>
+              <div class="hint-chip">Use after “Show Top N”</div>
+            </div>
           </div>
         </div>
 
@@ -277,6 +288,7 @@
           </div>
           <div class="legend-divider"></div>
           <div id="legendUpdatedAt" class="legend-foot muted">Updated: —</div>
+          <div class="legend-foot muted">Tip: numbers represent access score (0–100); zoom in for labels.</div>
         </div>
       </main>
     </div>
@@ -319,6 +331,7 @@
     <script src="/static/dataClient.js"></script>
     <script src="/static/sourcesCard.js"></script>
     <script src="/static/density.js"></script>
+    <script src="/static/bottomSheet.js"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>

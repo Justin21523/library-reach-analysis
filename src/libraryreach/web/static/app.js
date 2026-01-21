@@ -35,7 +35,7 @@ const LAYER_REGISTRY = [
     label: "Libraries",
     checkboxId: "layerLibraries",
     sourceId: "libraries",
-    layerIds: ["libraries"],
+    layerIds: ["libraries", "libraries-label"],
     eventLayerId: "libraries",
     renderOrder: 30,
     shortcut: "L",
@@ -61,9 +61,34 @@ const LAYER_REGISTRY = [
             100,
             mapColor("--map-score-high", "#009e73"),
           ],
-          "circle-opacity": 0.72,
-          "circle-stroke-width": 2,
+          "circle-opacity": 0.82,
+          "circle-stroke-width": 2.5,
           "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
+        },
+      });
+      map.addLayer({
+        id: "libraries-label",
+        type: "symbol",
+        source: "libraries",
+        minzoom: 13,
+        layout: {
+          "text-field": [
+            "concat",
+            ["slice", ["coalesce", ["get", "name"], ""], 0, 6],
+            " ",
+            ["to-string", ["round", ["coalesce", ["get", "accessibility_score"], 0]]],
+          ],
+          "text-size": 11,
+          "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+          "text-offset": [0, 1.05],
+          "text-anchor": "top",
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+        },
+        paint: {
+          "text-color": mapColor("--map-label", "rgba(15,23,42,0.92)"),
+          "text-halo-color": mapColor("--map-label-halo", "rgba(255,255,255,0.92)"),
+          "text-halo-width": 1.35,
         },
       });
     },
@@ -143,7 +168,7 @@ const LAYER_REGISTRY = [
         paint: {
           "circle-radius": 7,
           "circle-color": mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
-          "circle-stroke-width": 1.5,
+          "circle-stroke-width": 2.25,
           "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
         },
       });
@@ -511,14 +536,42 @@ function showNotice(message, kind = "info", { timeoutMs = 5000 } = {}) {
   }
 }
 
-function pushAction(message, kind = "info", { timeoutMs = 6500 } = {}) {
+function pushAction(message, kind = "info", { timeoutMs = 6500, details = null } = {}) {
   const drawer = el("actionDrawer");
   if (!drawer) return;
   const item = document.createElement("div");
   item.className = `action-item ${kind === "success" || kind === "error" || kind === "warning" ? kind : ""}`.trim();
-  item.innerHTML = `<span class="action-dot" aria-hidden="true"></span><div class="action-text">${escapeHtml(
-    message
-  )}</div>`;
+
+  const icon =
+    kind === "success" ? "✓" : kind === "warning" ? "!" : kind === "error" ? "×" : kind === "info" ? "i" : "•";
+  const safeMessage = escapeHtml(message);
+  const safeDetails = details ? escapeHtml(details) : "";
+  const detailsId = `action-details-${Math.random().toString(16).slice(2)}`;
+  item.innerHTML = `
+    <div class="action-icon" aria-hidden="true">${icon}</div>
+    <div class="action-main">
+      <div class="action-title">
+        <div class="action-text">${safeMessage}</div>
+        ${
+          details
+            ? `<button class="action-more" type="button" aria-expanded="false" aria-controls="${detailsId}">Details</button>`
+            : ""
+        }
+      </div>
+      ${details ? `<div id="${detailsId}" class="action-details hidden">${safeDetails}</div>` : ""}
+    </div>
+  `;
+
+  if (details) {
+    const btn = item.querySelector(".action-more");
+    const box = item.querySelector(`#${detailsId}`);
+    btn?.addEventListener("click", () => {
+      const expanded = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+      btn.textContent = expanded ? "Details" : "Hide";
+      box?.classList.toggle("hidden", expanded);
+    });
+  }
   drawer.prepend(item);
 
   const max = 4;
@@ -1215,21 +1268,21 @@ function initHighlightLayers(map) {
     type: "circle",
     source: "highlights",
     paint: {
-      "circle-radius": 16,
+      "circle-radius": 18,
       "circle-color": [
         "match",
         ["get", "kind"],
         "low_library_score",
-        "rgba(213,94,0,0.4)",
+        mapColor("--map-score-low", "#d55e00"),
         "high_desert_gap",
-        "rgba(230,159,0,0.35)",
+        mapColor("--map-score-mid", "#e69f00"),
         "top_outreach",
-        "rgba(0,114,178,0.25)",
-        "rgba(0,114,178,0.25)",
+        mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
+        mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
       ],
-      "circle-opacity": 1,
-      "circle-stroke-width": 2,
-      "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
+      "circle-opacity": 0.22,
+      "circle-stroke-width": 2.5,
+      "circle-stroke-color": mapColor("--map-label-halo", "rgba(255,255,255,0.92)"),
     },
   });
   map.addLayer({
@@ -1237,7 +1290,7 @@ function initHighlightLayers(map) {
     type: "circle",
     source: "highlights",
     paint: {
-      "circle-radius": 7,
+      "circle-radius": 8,
       "circle-color": [
         "match",
         ["get", "kind"],
@@ -1250,7 +1303,7 @@ function initHighlightLayers(map) {
         mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
       ],
       "circle-opacity": 0.95,
-      "circle-stroke-width": 2,
+      "circle-stroke-width": 2.5,
       "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
     },
   });
@@ -1635,7 +1688,7 @@ async function runWhatIf() {
   } catch (e) {
     setStatus(`What-if failed: ${e.message}`);
     showNotice(`What-if failed: ${e.message}`, "error", { timeoutMs: 0 });
-    pushAction(`What-if failed: ${e.message}`, "error", { timeoutMs: 0 });
+    pushAction(`What-if failed: ${e.message}`, "error", { timeoutMs: 0, details: String(e?.stack || e) });
     console.error(e);
   } finally {
     if (applyBtn) {
@@ -1784,11 +1837,38 @@ function initUIHandlers() {
   highlightApply?.addEventListener("click", () => applyHighlight());
   highlightClear?.addEventListener("click", () => clearHighlight());
   const spotlight = el("spotlightMode");
-  spotlight?.addEventListener("change", () => {
-    state.spotlight = spotlight.value || "all";
+  const spotlightSeg = el("spotlightSegmented");
+
+  const syncSpotlightUi = (mode) => {
+    const v = mode || "all";
+    if (spotlight) spotlight.value = v;
+    if (spotlightSeg) {
+      for (const btn of spotlightSeg.querySelectorAll("button[data-value]")) {
+        btn.setAttribute("aria-pressed", btn.getAttribute("data-value") === v ? "true" : "false");
+      }
+    }
+  };
+
+  const setSpotlight = (mode, { announce = true } = {}) => {
+    state.spotlight = mode || "all";
+    syncSpotlightUi(state.spotlight);
     applySpotlightMode();
-    pushAction(`Spotlight: ${state.spotlight}`, "info", { timeoutMs: 3500 });
-  });
+    if (announce) pushAction(`Spotlight: ${state.spotlight}`, "info", { timeoutMs: 3500 });
+  };
+
+  if (spotlight) {
+    state.spotlight = spotlight.value || state.spotlight || "all";
+    syncSpotlightUi(state.spotlight);
+    spotlight.addEventListener("change", () => setSpotlight(spotlight.value));
+  }
+  if (spotlightSeg) {
+    spotlightSeg.addEventListener("click", (e) => {
+      const btn = e.target?.closest?.("button[data-value]");
+      if (!btn) return;
+      const mode = btn.getAttribute("data-value") || "all";
+      setSpotlight(mode);
+    });
+  }
 
   el("copyLink").addEventListener("click", async () => {
     try {
@@ -1887,9 +1967,9 @@ function initMap() {
       type: "line",
       source: "metro_links",
       paint: {
-        "line-color": "rgba(0,114,178,0.5)",
-        "line-width": 2,
-        "line-opacity": 0.8,
+        "line-color": mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
+        "line-width": 2.5,
+        "line-opacity": 0.65,
       },
     });
 
@@ -1946,9 +2026,10 @@ function initMap() {
       source: "selection",
       paint: {
         "circle-radius": 18,
-        "circle-color": "rgba(0,114,178,0.16)",
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "rgba(0,114,178,0.7)",
+        "circle-color": mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
+        "circle-opacity": 0.18,
+        "circle-stroke-width": 2.5,
+        "circle-stroke-color": mapColor("--map-label-halo", "rgba(255,255,255,0.92)"),
       },
     });
 
@@ -1958,8 +2039,9 @@ function initMap() {
       source: "selection",
       paint: {
         "circle-radius": 8,
-        "circle-color": "rgba(0,114,178,0.7)",
-        "circle-stroke-width": 2,
+        "circle-color": mapColor("--map-outreach", "rgba(0,114,178,0.75)"),
+        "circle-opacity": 0.92,
+        "circle-stroke-width": 2.5,
         "circle-stroke-color": mapColor("--map-stroke", "rgba(15,23,42,0.9)"),
       },
     });
