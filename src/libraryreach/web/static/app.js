@@ -1,19 +1,39 @@
-const STYLE = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: [
-        "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+function isE2eMode() {
+  try {
+    return new URLSearchParams(window.location.search).get("e2e") === "1";
+  } catch {
+    return false;
+  }
+}
+
+const STYLE = isE2eMode()
+  ? {
+      version: 8,
+      sources: {},
+      layers: [
+        {
+          id: "bg",
+          type: "background",
+          paint: { "background-color": "#f7f8fb" },
+        },
       ],
-      tileSize: 256,
-      attribution: "&copy; OpenStreetMap contributors",
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
+    }
+  : {
+      version: 8,
+      sources: {
+        osm: {
+          type: "raster",
+          tiles: [
+            "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          ],
+          tileSize: 256,
+          attribution: "&copy; OpenStreetMap contributors",
+        },
+      },
+      layers: [{ id: "osm", type: "raster", source: "osm" }],
+    };
 
 function cssVar(name, fallback = "") {
   try {

@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-01-21T00:00:00Z",
+  "processed_dir": "data/processed",
+  "run_meta": {
+    "run_id": "fixture-run-2026-01-21",
+    "generated_at": "2026-01-21T00:00:00Z",
+    "scenario": "weekday",
+    "cities": ["Taipei", "Taichung"],
+    "config_hash": "fixture-4f3c2a1b"
+  },
+  "ingestion_status": {
+    "state": "ok",
+    "note": "fixture mode",
+    "last_success_at": "2026-01-20T03:12:00Z"
+  },
+  "stops_meta": {"generated_at": "2026-01-20T03:12:00Z", "source": "fixture", "count": 6},
+  "sources_index": {
+    "generated_at": "2026-01-20T03:12:00Z",
+    "sources": [
+      {"source_id": "tdx_stops", "fetched_at": "2026-01-20T03:12:00Z", "status": "ok", "checksum_sha256_short": "7f3c2a1b"},
+      {"source_id": "tdx_youbike", "fetched_at": "2026-01-20T03:12:00Z", "status": "ok", "checksum_sha256_short": "9a8b1c2d"},
+      {"source_id": "opendata_libraries_v1", "fetched_at": "2026-01-20T03:12:00Z", "status": "ok", "checksum_sha256_short": "4f3c2a1b"}
+    ]
+  },
+  "qa_report_md": "Fixture mode: QA report is deterministic and intended for demos."
+}

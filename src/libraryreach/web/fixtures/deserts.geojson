@@ -1,0 +1,12 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.492, 25.041]}, "properties": {"cell_id": "d1", "city": "Taipei", "is_desert": true, "effective_score_0_100": 24.0, "gap_to_threshold": 6.0, "best_library_id": "L-TP-003", "best_library_distance_m": 1800}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.559, 25.022]}, "properties": {"cell_id": "d2", "city": "Taipei", "is_desert": true, "effective_score_0_100": 20.0, "gap_to_threshold": 10.0, "best_library_id": "L-TP-002", "best_library_distance_m": 2200}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.469, 25.041]}, "properties": {"cell_id": "d3", "city": "Taipei", "is_desert": true, "effective_score_0_100": 22.0, "gap_to_threshold": 8.0, "best_library_id": "L-TP-001", "best_library_distance_m": 2100}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.61, 24.165]}, "properties": {"cell_id": "d4", "city": "Taichung", "is_desert": true, "effective_score_0_100": 22.0, "gap_to_threshold": 8.0, "best_library_id": "L-TC-001", "best_library_distance_m": 2100}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.70, 24.19]}, "properties": {"cell_id": "d5", "city": "Taichung", "is_desert": true, "effective_score_0_100": 18.0, "gap_to_threshold": 12.0, "best_library_id": "L-TC-002", "best_library_distance_m": 2600}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.66, 24.14]}, "properties": {"cell_id": "d6", "city": "Taichung", "is_desert": true, "effective_score_0_100": 25.0, "gap_to_threshold": 5.0, "best_library_id": "L-TC-003", "best_library_distance_m": 1700}}
+  ]
+}
+

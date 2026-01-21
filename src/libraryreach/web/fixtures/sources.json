@@ -1,0 +1,32 @@
+{
+  "generated_at": "2026-01-20T03:12:00Z",
+  "sources": [
+    {
+      "source_id": "tdx_stops",
+      "fetched_at": "2026-01-20T03:12:00Z",
+      "status": "ok",
+      "checksum_sha256": "7f3c2a1b00000000000000000000000000000000000000000000000000000000",
+      "etag": "fixture-etag-stops",
+      "not_modified": false,
+      "output_path": "data/raw/tdx/stops.csv"
+    },
+    {
+      "source_id": "tdx_youbike",
+      "fetched_at": "2026-01-20T03:12:00Z",
+      "status": "ok",
+      "checksum_sha256": "9a8b1c2d00000000000000000000000000000000000000000000000000000000",
+      "etag": "fixture-etag-youbike",
+      "not_modified": false,
+      "output_path": "data/raw/tdx/youbike_stations.csv"
+    },
+    {
+      "source_id": "opendata_libraries_v1",
+      "fetched_at": "2026-01-20T03:12:00Z",
+      "status": "ok",
+      "checksum_sha256": "4f3c2a1b00000000000000000000000000000000000000000000000000000000",
+      "etag": "fixture-etag-libraries",
+      "not_modified": false,
+      "output_path": "data/catalogs/libraries.csv"
+    }
+  ]
+}

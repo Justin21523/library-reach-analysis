@@ -1,0 +1,52 @@
+{
+  "generated_at": "2026-01-21T00:00:00Z",
+  "scenario": "weekday",
+  "cities": ["Taipei", "Taichung"],
+  "source": {"type": "fixture"},
+  "run_meta": {
+    "run_id": "fixture-run-2026-01-21",
+    "generated_at": "2026-01-21T00:00:00Z",
+    "scenario": "weekday",
+    "cities": ["Taipei", "Taichung"],
+    "config_hash": "fixture-4f3c2a1b"
+  },
+  "summary": {
+    "metrics": {
+      "libraries_count": 6,
+      "avg_accessibility_score": 63.4,
+      "deserts_count": 18,
+      "outreach_count": 12,
+      "score_buckets": {"low": 1, "mid": 3, "high": 2},
+      "youbike_station_count": 6
+    },
+    "deserts_by_city": [
+      {"city": "Taipei", "desert_count": 9},
+      {"city": "Taichung", "desert_count": 9}
+    ],
+    "outreach_top": [
+      {"id": "o1", "name": "Community Hub A", "city": "Taipei", "district": "Zhongzheng", "outreach_score": 86.2},
+      {"id": "o2", "name": "School Gym B", "city": "Taipei", "district": "Da’an", "outreach_score": 82.5},
+      {"id": "o3", "name": "Station Plaza C", "city": "Taichung", "district": "Xitun", "outreach_score": 81.0},
+      {"id": "o4", "name": "Community Hub D", "city": "Taichung", "district": "Beitun", "outreach_score": 79.4}
+    ]
+  },
+  "config": {
+    "meta": {"scenario": "weekday"},
+    "aoi": {"cities": ["Taipei", "Taichung"]},
+    "buffers": {"radii_m": [500, 1000]},
+    "spatial": {"grid": {"cell_size_m": 1000}},
+    "scoring": {
+      "mode_weights": {"bus": 0.6, "metro": 0.4},
+      "radius_weights": {"500": 0.6, "1000": 0.4},
+      "density_targets_per_km2": {
+        "bus": {"500": 22, "1000": 12},
+        "metro": {"500": 2.5, "1000": 1.2}
+      }
+    },
+    "planning": {
+      "deserts": {"threshold_score": 30, "library_search_radius_m": 3000},
+      "outreach": {"coverage_radius_m": 1000, "top_n_per_city": 10}
+    }
+  }
+}
+

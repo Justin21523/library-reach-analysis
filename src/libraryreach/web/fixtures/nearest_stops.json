@@ -1,0 +1,7 @@
+{
+  "items": [
+    {"stop_id": "M-TP-01", "name": "Taipei Main Station", "mode": "metro", "city": "Taipei", "lat": 25.047, "lon": 121.517, "distance_m": 650.0},
+    {"stop_id": "M-TP-03", "name": "Ximen Station", "mode": "metro", "city": "Taipei", "lat": 25.035, "lon": 121.499, "distance_m": 1250.0}
+  ]
+}
+

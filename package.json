@@ -1,0 +1,14 @@
+{
+  "name": "libraryreach-e2e",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  },
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:report": "playwright show-report reports/playwright-report",
+    "e2e:screenshots": "playwright test -g \"@screenshots\"",
+    "test:all": "pytest -q && playwright test && python scripts/update_readmd.py"
+  }
+}
+

@@ -1,0 +1,12 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.516, 25.046]}, "properties": {"station_id": "YB-TP-01", "name": "YouBike Taipei 01", "city": "Taipei"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.535, 25.031]}, "properties": {"station_id": "YB-TP-02", "name": "YouBike Taipei 02", "city": "Taipei"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.502, 25.036]}, "properties": {"station_id": "YB-TP-03", "name": "YouBike Taipei 03", "city": "Taipei"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.645, 24.166]}, "properties": {"station_id": "YB-TC-01", "name": "YouBike Taichung 01", "city": "Taichung"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.686, 24.179]}, "properties": {"station_id": "YB-TC-02", "name": "YouBike Taichung 02", "city": "Taichung"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.641, 24.147]}, "properties": {"station_id": "YB-TC-03", "name": "YouBike Taichung 03", "city": "Taichung"}}
+  ]
+}
+

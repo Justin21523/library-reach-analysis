@@ -1,0 +1,11 @@
+{
+  "libraries": [
+    {"id": "L-TP-001", "name": "Taipei Main Library", "address": "Zhongzheng Dist.", "lat": 25.0375, "lon": 121.5146, "city": "Taipei", "district": "Zhongzheng", "accessibility_score": 78.2},
+    {"id": "L-TP-002", "name": "Daan Branch", "address": "Da’an Dist.", "lat": 25.0263, "lon": 121.5438, "city": "Taipei", "district": "Da’an", "accessibility_score": 66.1},
+    {"id": "L-TP-003", "name": "Wanhua Branch", "address": "Wanhua Dist.", "lat": 25.0342, "lon": 121.4998, "city": "Taipei", "district": "Wanhua", "accessibility_score": 42.6},
+    {"id": "L-TC-001", "name": "Taichung Central Library", "address": "Xitun Dist.", "lat": 24.1667, "lon": 120.6409, "city": "Taichung", "district": "Xitun", "accessibility_score": 71.4},
+    {"id": "L-TC-002", "name": "Beitun Branch", "address": "Beitun Dist.", "lat": 24.1774, "lon": 120.6866, "city": "Taichung", "district": "Beitun", "accessibility_score": 62.3},
+    {"id": "L-TC-003", "name": "Nantun Branch", "address": "Nantun Dist.", "lat": 24.1469, "lon": 120.6429, "city": "Taichung", "district": "Nantun", "accessibility_score": 59.7}
+  ]
+}
+

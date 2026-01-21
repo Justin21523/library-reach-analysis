@@ -1,0 +1,19 @@
+{
+  "id": "L-TP-001",
+  "name": "Taipei Main Library",
+  "address": "Zhongzheng Dist.",
+  "lat": 25.0375,
+  "lon": 121.5146,
+  "city": "Taipei",
+  "district": "Zhongzheng",
+  "accessibility_score": 78.2,
+  "metrics": {
+    "stop_count_bus_500": 18,
+    "stop_count_metro_500": 2,
+    "stop_count_bus_1000": 42,
+    "stop_count_metro_1000": 5
+  },
+  "explain": {"note": "Fixture explanation block for demo purposes."},
+  "explain_text": "高分代表周邊站點密度較高、轉乘成本較低；仍需觀察落差區域的集中程度。"
+}
+

@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-01-21T00:00:00Z",
+  "scenario": "weekday",
+  "cities": ["Taipei", "Taichung"],
+  "assumptions": {
+    "scenario": "weekday",
+    "cities": ["Taipei", "Taichung"],
+    "config_patch": {
+      "planning": {"deserts": {"threshold_score": 30}, "outreach": {"coverage_radius_m": 1000, "top_n_per_city": 10}}
+    }
+  },
+  "run_meta": {
+    "run_id": "fixture-run-2026-01-21",
+    "generated_at": "2026-01-21T00:00:00Z",
+    "scenario": "weekday",
+    "cities": ["Taipei", "Taichung"],
+    "config_hash": "fixture-4f3c2a1b"
+  },
+  "baseline": {
+    "metrics": {
+      "libraries_count": 6,
+      "avg_accessibility_score": 61.8,
+      "deserts_count": 22,
+      "outreach_count": 12,
+      "score_buckets": {"low": 2, "mid": 3, "high": 1}
+    }
+  },
+  "whatif": {
+    "metrics": {
+      "libraries_count": 6,
+      "avg_accessibility_score": 63.4,
+      "deserts_count": 18,
+      "outreach_count": 12,
+      "score_buckets": {"low": 1, "mid": 3, "high": 2}
+    }
+  },
+  "delta": {"avg_accessibility_score": 1.6, "deserts_count": -4, "outreach_count": 0},
+  "narrative": {
+    "headline": "情境比較摘要",
+    "bullets": [
+      "平均可達性：63.4（Δ +1.6）",
+      "服務落差 deserts：18（Δ -4；越少越好）",
+      "外展建議數量：12（baseline 12）"
+    ]
+  },
+  "narrative_blocks": [
+    {
+      "type": "assumptions",
+      "title": "本次假設",
+      "body": "Scenario: weekday · Cities: Taipei, Taichung · Desert threshold: 30/100 · Grid size: 1000m · Outreach radius: 1000m · Top N / city: 10"
+    },
+    {
+      "type": "interpretation",
+      "title": "如何解讀",
+      "items": [
+        "平均可達性上升代表整體更容易抵達館點，但仍需觀察低分區域是否集中。",
+        "deserts 變少表示服務落差縮小（越少越好），可搭配 deserts by city 來設定優先順序。",
+        "外展建議是候選點位排序；建議搭配現場條件與合作意願做最後篩選。"
+      ]
+    },
+    {
+      "type": "next_steps",
+      "title": "下一步建議",
+      "items": [
+        "在成果頁檢視分數分佈與 deserts by city，找出最需要補強的城市/生活圈。",
+        "用控制台調整門檻、格網與外展半徑，觀察 delta 是否符合政策目標。",
+        "把本次假設分享為 URL，讓跨角色共讀同一組前提與結果。"
+      ]
+    }
+  ],
+  "locale": "zh-Hant",
+  "config": {
+    "meta": {"scenario": "weekday"},
+    "aoi": {"cities": ["Taipei", "Taichung"]},
+    "spatial": {"grid": {"cell_size_m": 1000}},
+    "planning": {"deserts": {"threshold_score": 30}, "outreach": {"coverage_radius_m": 1000, "top_n_per_city": 10}}
+  }
+}
+

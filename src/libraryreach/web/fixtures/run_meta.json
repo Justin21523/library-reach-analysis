@@ -1,0 +1,12 @@
+{
+  "run_id": "fixture-run-2026-01-21",
+  "generated_at": "2026-01-21T00:00:00Z",
+  "scenario": "weekday",
+  "cities": ["Taipei", "Taichung"],
+  "config_hash": "fixture-4f3c2a1b",
+  "input_sources": {
+    "tdx_stops": {"source": "fixture", "fetched_at": "2026-01-20T03:12:00Z"},
+    "tdx_youbike": {"source": "fixture", "fetched_at": "2026-01-20T03:12:00Z"},
+    "libraries_catalog": {"source": "fixture", "fetched_at": "2026-01-20T03:12:00Z"}
+  }
+}

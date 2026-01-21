@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-01-21T00:00:00Z",
+  "scenarios": ["weekday", "weekend", "after_school"],
+  "default_scenario": "weekday",
+  "cities": ["Taipei", "Taichung"],
+  "processed_dir": "data/processed",
+  "config_path": "config/default.yaml",
+  "run_meta": {
+    "run_id": "fixture-run-2026-01-21",
+    "generated_at": "2026-01-21T00:00:00Z",
+    "scenario": "weekday",
+    "cities": ["Taipei", "Taichung"],
+    "config_hash": "fixture-4f3c2a1b"
+  },
+  "qa": {"summary": "Fixture mode (deterministic demo data)."},
+  "ingestion_status": {"state": "ok", "note": "fixture mode"},
+  "stops_meta": {"generated_at": "2026-01-20T03:12:00Z", "source": "fixture", "count": 6},
+  "youbike_meta": {"generated_at": "2026-01-20T03:12:00Z", "source": "fixture", "count": 6},
+  "sources_index": {
+    "generated_at": "2026-01-20T03:12:00Z",
+    "sources": [
+      {"source_id": "tdx_stops", "fetched_at": "2026-01-20T03:12:00Z", "status": "ok", "checksum_sha256_short": "7f3c2a1b", "output_path": "data/raw/tdx/stops.csv"},
+      {"source_id": "tdx_youbike", "fetched_at": "2026-01-20T03:12:00Z", "status": "ok", "checksum_sha256_short": "9a8b1c2d", "output_path": "data/raw/tdx/youbike_stations.csv"},
+      {"source_id": "opendata_libraries_v1", "fetched_at": "2026-01-20T03:12:00Z", "status": "ok", "checksum_sha256_short": "4f3c2a1b", "output_path": "data/catalogs/libraries.csv"}
+    ]
+  }
+}
+

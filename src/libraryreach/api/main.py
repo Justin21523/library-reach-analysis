@@ -25,6 +25,13 @@ from libraryreach.planning.deserts import deserts_points_geojson
 from libraryreach.settings import load_settings
 
 
+def _truthy_env(name: str) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return False
+    return v.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def _processed_dir() -> Path:
     return Path(os.getenv("LIBRARYREACH_PROCESSED_DIR", "data/processed")).resolve()
 
@@ -90,6 +97,9 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "web" / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+FIXTURES_ENABLED = _truthy_env("LIBRARYREACH_E2E_FIXTURES")
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "web" / "fixtures"
 
 CONFIG_PATH = Path(os.getenv("LIBRARYREACH_CONFIG", "config/default.yaml")).resolve()
 DEFAULT_SCENARIO = os.getenv("LIBRARYREACH_SCENARIO", "weekday")
@@ -157,6 +167,48 @@ def _point_geojson_from_csv(
     return _df_to_point_geojson(df, lat_col=lat_col, lon_col=lon_col)
 
 
+def _fixture_json(name: str) -> dict[str, Any]:
+    path = (FIXTURES_DIR / name).resolve()
+    if not str(path).startswith(str(FIXTURES_DIR.resolve())):
+        raise HTTPException(status_code=500, detail="Invalid fixture path")
+    if not path.exists():
+        raise HTTPException(status_code=500, detail=f"Missing fixture: {name}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=500, detail=f"Fixture must be an object: {name}")
+    return data
+
+
+def _fixture_geojson(name: str) -> dict[str, Any]:
+    path = (FIXTURES_DIR / name).resolve()
+    if not str(path).startswith(str(FIXTURES_DIR.resolve())):
+        raise HTTPException(status_code=500, detail="Invalid fixture path")
+    if not path.exists():
+        raise HTTPException(status_code=500, detail=f"Missing fixture: {name}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=500, detail=f"Fixture must be an object: {name}")
+    if data.get("type") != "FeatureCollection":
+        raise HTTPException(status_code=500, detail=f"Fixture must be GeoJSON FeatureCollection: {name}")
+    return data
+
+
+def _bbox_filter_geojson(fc: dict[str, Any], bbox: tuple[float, float, float, float] | None) -> dict[str, Any]:
+    if not bbox:
+        return fc
+    minx, miny, maxx, maxy = bbox
+    out: list[dict[str, Any]] = []
+    for f in fc.get("features", []) or []:
+        try:
+            coords = f.get("geometry", {}).get("coordinates")
+            lon, lat = float(coords[0]), float(coords[1])
+        except Exception:
+            continue
+        if minx <= lon <= maxx and miny <= lat <= maxy:
+            out.append(f)
+    return {"type": "FeatureCollection", "features": out}
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -184,6 +236,10 @@ def method() -> FileResponse:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("health.json")
+        data["generated_at"] = utc_now_iso()
+        return data
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
     p = _processed_dir()
     run_meta = load_run_meta(p)
@@ -227,6 +283,8 @@ def health() -> dict[str, Any]:
 
 @app.get("/control/config")
 def control_config(scenario: str | None = None) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        return _fixture_json("control_config.json")
     s = scenario or DEFAULT_SCENARIO
     settings = _settings_for_scenario(s)
     return _subset_settings(settings)
@@ -234,6 +292,10 @@ def control_config(scenario: str | None = None) -> dict[str, Any]:
 
 @app.get("/meta")
 def meta() -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("meta.json")
+        data["generated_at"] = utc_now_iso()
+        return data
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
     p = _processed_dir()
     raw_dir = _raw_dir(settings)
@@ -269,6 +331,10 @@ def control_validate_catalogs(scenario: str | None = None) -> dict[str, Any]:
 
 @app.get("/reports/latest")
 def reports_latest() -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("reports_latest.json")
+        data["generated_at"] = utc_now_iso()
+        return data
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
     p = _processed_dir()
     reports: dict[str, Any] = {"generated_at": utc_now_iso(), "processed_dir": str(p), "run_meta": load_run_meta(p)}
@@ -307,6 +373,10 @@ def reports_latest() -> dict[str, Any]:
 
 @app.get("/sources")
 def sources_index(response: Response) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("sources.json")
+        response.headers["ETag"] = _etag(json.dumps(data, sort_keys=True))
+        return data
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
     raw_dir = _raw_dir(settings)
     path = raw_dir / "sources_index.json"
@@ -325,6 +395,10 @@ def sources_index(response: Response) -> dict[str, Any]:
 
 @app.post("/analysis/whatif")
 def analysis_whatif(payload: dict[str, Any]) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("analysis_whatif.json")
+        data["run_meta"] = _fixture_json("run_meta.json")
+        return data
     scenario = str(payload.get("scenario") or DEFAULT_SCENARIO)
     config_patch = payload.get("config_patch") or {}
     cities = payload.get("cities")
@@ -388,6 +462,13 @@ def analysis_baseline_summary(
     cities: list[str] | None = Query(default=None),
     top_n_outreach: int = 10,
 ) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("baseline_summary.json")
+        data["generated_at"] = utc_now_iso()
+        response.headers["ETag"] = _etag(
+            json.dumps({"fixture": "baseline_summary", "scenario": scenario, "cities": cities, "top_n_outreach": top_n_outreach}, sort_keys=True)
+        )
+        return data
     s = scenario or DEFAULT_SCENARIO
     settings = _settings_for_scenario(s)
     default_cities = [str(c) for c in (settings.get("aoi", {}) or {}).get("cities", [])]
@@ -471,6 +552,10 @@ def analysis_baseline_summary(
 
 @app.post("/analysis/compare")
 def analysis_compare(payload: dict[str, Any]) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("compare.json")
+        data["generated_at"] = utc_now_iso()
+        return data
     scenario = str(payload.get("scenario") or DEFAULT_SCENARIO)
     config_patch = payload.get("config_patch") or {}
     cities = payload.get("cities")
@@ -657,6 +742,12 @@ def _load_libraries() -> tuple[pd.DataFrame, dict[str, Any]]:
 
 @app.get("/libraries", response_model=list[LibrarySummary])
 def list_libraries() -> list[LibrarySummary]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("libraries.json")
+        rows = data.get("libraries") or []
+        if not isinstance(rows, list):
+            raise HTTPException(status_code=500, detail="Invalid libraries fixture")
+        return [LibrarySummary(**r) for r in rows]
     try:
         df, _ = _load_libraries()
     except FileNotFoundError as e:
@@ -668,6 +759,11 @@ def list_libraries() -> list[LibrarySummary]:
 
 @app.get("/libraries/{library_id}", response_model=LibraryDetail)
 def get_library(library_id: str) -> LibraryDetail:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("library_detail.json")
+        if str(data.get("id")) != str(library_id):
+            raise HTTPException(status_code=404, detail="Library not found (fixture)")
+        return LibraryDetail(**data)
     try:
         df, explain_by_id = _load_libraries()
     except FileNotFoundError as e:
@@ -692,6 +788,16 @@ def libraries_geojson(
     bbox: str | None = None,
     limit: int = 50000,
 ) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        fc = _fixture_geojson("libraries.geojson")
+        bb = parse_bbox(bbox) if bbox else None
+        out = _bbox_filter_geojson(
+            fc,
+            (bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat) if bb else None,
+        )
+        if limit and isinstance(out.get("features"), list) and len(out["features"]) > int(limit):
+            out["features"] = out["features"][: int(limit)]
+        return out
     try:
         df, _ = _load_libraries()
     except FileNotFoundError as e:
@@ -770,6 +876,16 @@ def deserts_geojson(
     bbox: str | None = None,
     limit: int = 50000,
 ) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        fc = _fixture_geojson("deserts.geojson")
+        bb = parse_bbox(bbox) if bbox else None
+        out = _bbox_filter_geojson(
+            fc,
+            (bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat) if bb else None,
+        )
+        if limit and isinstance(out.get("features"), list) and len(out["features"]) > int(limit):
+            out["features"] = out["features"][: int(limit)]
+        return out
     p = _processed_dir()
     geo_path = p / "deserts.geojson"
     if geo_path.exists():
@@ -836,6 +952,12 @@ def outreach_recommendations(
     cities: list[str] | None = Query(default=None),
     top_n: int = 1000,
 ) -> list[OutreachRecommendation]:
+    if FIXTURES_ENABLED:
+        data = _fixture_json("outreach_recommendations.json")
+        rows = data.get("recommendations") or []
+        if not isinstance(rows, list):
+            raise HTTPException(status_code=500, detail="Invalid outreach fixture")
+        return [OutreachRecommendation(**r) for r in rows[: int(top_n)]]
     p = _processed_dir()
     path = p / "outreach_recommendations.csv"
     if not path.exists():
@@ -863,6 +985,16 @@ def stops_geojson(
     city: str | None = None,
     limit: int = 50000,
 ) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        fc = _fixture_geojson("stops.geojson")
+        bb = parse_bbox(bbox) if bbox else None
+        out = _bbox_filter_geojson(
+            fc,
+            (bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat) if bb else None,
+        )
+        if limit and isinstance(out.get("features"), list) and len(out["features"]) > int(limit):
+            out["features"] = out["features"][: int(limit)]
+        return out
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
     raw_dir = _raw_dir(settings)
     path = raw_dir / "tdx" / "stops.csv"
@@ -907,6 +1039,16 @@ def youbike_geojson(
     city: str | None = None,
     limit: int = 50000,
 ) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        fc = _fixture_geojson("youbike.geojson")
+        bb = parse_bbox(bbox) if bbox else None
+        out = _bbox_filter_geojson(
+            fc,
+            (bb.min_lon, bb.min_lat, bb.max_lon, bb.max_lat) if bb else None,
+        )
+        if limit and isinstance(out.get("features"), list) and len(out["features"]) > int(limit):
+            out["features"] = out["features"][: int(limit)]
+        return out
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
     raw_dir = _raw_dir(settings)
     path = raw_dir / "tdx" / "youbike_stations.csv"
@@ -949,6 +1091,8 @@ def nearest_stops(
     k: int = 8,
     max_distance_m: float = 3000.0,
 ) -> dict[str, Any]:
+    if FIXTURES_ENABLED:
+        return _fixture_json("nearest_stops.json")
     settings = _settings_for_scenario(DEFAULT_SCENARIO)
     raw_dir = _raw_dir(settings)
     path = raw_dir / "tdx" / "stops.csv"

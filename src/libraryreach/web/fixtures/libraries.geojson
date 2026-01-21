@@ -1,0 +1,12 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.5146, 25.0375]}, "properties": {"id": "L-TP-001", "name": "Taipei Main Library", "city": "Taipei", "district": "Zhongzheng", "accessibility_score": 78.2}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.5438, 25.0263]}, "properties": {"id": "L-TP-002", "name": "Daan Branch", "city": "Taipei", "district": "Da’an", "accessibility_score": 66.1}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.4998, 25.0342]}, "properties": {"id": "L-TP-003", "name": "Wanhua Branch", "city": "Taipei", "district": "Wanhua", "accessibility_score": 42.6}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.6409, 24.1667]}, "properties": {"id": "L-TC-001", "name": "Taichung Central Library", "city": "Taichung", "district": "Xitun", "accessibility_score": 71.4}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.6866, 24.1774]}, "properties": {"id": "L-TC-002", "name": "Beitun Branch", "city": "Taichung", "district": "Beitun", "accessibility_score": 62.3}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.6429, 24.1469]}, "properties": {"id": "L-TC-003", "name": "Nantun Branch", "city": "Taichung", "district": "Nantun", "accessibility_score": 59.7}}
+  ]
+}
+

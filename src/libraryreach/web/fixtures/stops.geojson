@@ -1,0 +1,12 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.517, 25.047]}, "properties": {"stop_id": "M-TP-01", "name": "Taipei Main Station", "mode": "metro", "city": "Taipei"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.533, 25.033]}, "properties": {"stop_id": "M-TP-02", "name": "Da’an Station", "mode": "metro", "city": "Taipei"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.499, 25.035]}, "properties": {"stop_id": "M-TP-03", "name": "Ximen Station", "mode": "metro", "city": "Taipei"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.644, 24.165]}, "properties": {"stop_id": "M-TC-01", "name": "Taichung City Hall", "mode": "metro", "city": "Taichung"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.683, 24.181]}, "properties": {"stop_id": "M-TC-02", "name": "Beitun Station", "mode": "metro", "city": "Taichung"}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.652, 24.146]}, "properties": {"stop_id": "M-TC-03", "name": "Nantun Station", "mode": "metro", "city": "Taichung"}}
+  ]
+}
+

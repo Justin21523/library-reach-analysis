@@ -1,0 +1,50 @@
+{
+  "scenario": "weekday",
+  "config": {
+    "meta": {"scenario": "weekday"},
+    "aoi": {"cities": ["Taipei", "Taichung"]},
+    "spatial": {"grid": {"cell_size_m": 1000}},
+    "planning": {"deserts": {"threshold_score": 30}, "outreach": {"coverage_radius_m": 1000, "top_n_per_city": 10}}
+  },
+  "run_meta": {"run_id": "fixture-run-2026-01-21"},
+  "libraries": [
+    {"id": "L-TP-001", "name": "Taipei Main Library", "address": "Zhongzheng Dist.", "lat": 25.0375, "lon": 121.5146, "city": "Taipei", "district": "Zhongzheng", "accessibility_score": 78.2},
+    {"id": "L-TP-002", "name": "Daan Branch", "address": "Da’an Dist.", "lat": 25.0263, "lon": 121.5438, "city": "Taipei", "district": "Da’an", "accessibility_score": 66.1},
+    {"id": "L-TP-003", "name": "Wanhua Branch", "address": "Wanhua Dist.", "lat": 25.0342, "lon": 121.4998, "city": "Taipei", "district": "Wanhua", "accessibility_score": 42.6},
+    {"id": "L-TC-001", "name": "Taichung Central Library", "address": "Xitun Dist.", "lat": 24.1667, "lon": 120.6409, "city": "Taichung", "district": "Xitun", "accessibility_score": 71.4},
+    {"id": "L-TC-002", "name": "Beitun Branch", "address": "Beitun Dist.", "lat": 24.1774, "lon": 120.6866, "city": "Taichung", "district": "Beitun", "accessibility_score": 62.3},
+    {"id": "L-TC-003", "name": "Nantun Branch", "address": "Nantun Dist.", "lat": 24.1469, "lon": 120.6429, "city": "Taichung", "district": "Nantun", "accessibility_score": 59.7}
+  ],
+  "libraries_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.5146, 25.0375]}, "properties": {"id": "L-TP-001", "name": "Taipei Main Library", "city": "Taipei", "district": "Zhongzheng", "accessibility_score": 78.2}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.5438, 25.0263]}, "properties": {"id": "L-TP-002", "name": "Daan Branch", "city": "Taipei", "district": "Da’an", "accessibility_score": 66.1}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.4998, 25.0342]}, "properties": {"id": "L-TP-003", "name": "Wanhua Branch", "city": "Taipei", "district": "Wanhua", "accessibility_score": 42.6}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.6409, 24.1667]}, "properties": {"id": "L-TC-001", "name": "Taichung Central Library", "city": "Taichung", "district": "Xitun", "accessibility_score": 71.4}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.6866, 24.1774]}, "properties": {"id": "L-TC-002", "name": "Beitun Branch", "city": "Taichung", "district": "Beitun", "accessibility_score": 62.3}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.6429, 24.1469]}, "properties": {"id": "L-TC-003", "name": "Nantun Branch", "city": "Taichung", "district": "Nantun", "accessibility_score": 59.7}}
+    ]
+  },
+  "deserts_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.492, 25.041]}, "properties": {"cell_id": "d1", "city": "Taipei", "is_desert": true, "effective_score_0_100": 24.0, "gap_to_threshold": 6.0, "best_library_distance_m": 1800}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.559, 25.022]}, "properties": {"cell_id": "d2", "city": "Taipei", "is_desert": true, "effective_score_0_100": 20.0, "gap_to_threshold": 10.0, "best_library_distance_m": 2200}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.61, 24.165]}, "properties": {"cell_id": "d3", "city": "Taichung", "is_desert": true, "effective_score_0_100": 22.0, "gap_to_threshold": 8.0, "best_library_distance_m": 2100}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.70, 24.190]}, "properties": {"cell_id": "d4", "city": "Taichung", "is_desert": true, "effective_score_0_100": 18.0, "gap_to_threshold": 12.0, "best_library_distance_m": 2600}}
+    ]
+  },
+  "outreach": [
+    {"id": "o1", "name": "Community Hub A", "lat": 25.0388, "lon": 121.517, "city": "Taipei", "district": "Zhongzheng", "outreach_score": 86.2, "recommendation_explain": "High coverage potential; close to deserts cluster."},
+    {"id": "o3", "name": "Station Plaza C", "lat": 24.1656, "lon": 120.6451, "city": "Taichung", "district": "Xitun", "outreach_score": 81.0, "recommendation_explain": "Transit-adjacent; covers multiple desert cells."}
+  ],
+  "outreach_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [121.517, 25.0388]}, "properties": {"id": "o1", "name": "Community Hub A", "city": "Taipei", "district": "Zhongzheng", "outreach_score": 86.2}},
+      {"type": "Feature", "geometry": {"type": "Point", "coordinates": [120.6451, 24.1656]}, "properties": {"id": "o3", "name": "Station Plaza C", "city": "Taichung", "district": "Xitun", "outreach_score": 81.0}}
+    ]
+  }
+}
+

@@ -1,0 +1,24 @@
+{
+  "meta": {"scenario": "weekday"},
+  "aoi": {"cities": ["Taipei", "Taichung"]},
+  "buffers": {"radii_m": [500, 1000]},
+  "spatial": {"grid": {"cell_size_m": 1000}},
+  "scoring": {
+    "mode_weights": {"bus": 0.6, "metro": 0.4},
+    "radius_weights": {"500": 0.6, "1000": 0.4},
+    "density_targets_per_km2": {
+      "bus": {"500": 22, "1000": 12},
+      "metro": {"500": 2.5, "1000": 1.2}
+    }
+  },
+  "planning": {
+    "deserts": {"threshold_score": 30, "library_search_radius_m": 3000},
+    "outreach": {
+      "coverage_radius_m": 1000,
+      "top_n_per_city": 10,
+      "weight_coverage": 0.7,
+      "weight_site_access": 0.3,
+      "allowed_candidate_types": ["school", "community_center", "station_plaza"]
+    }
+  }
+}
