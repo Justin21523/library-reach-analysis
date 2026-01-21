@@ -1970,9 +1970,17 @@ function initMap() {
     center: [121.0, 23.8],
     zoom: 7,
     attributionControl: true,
+    preserveDrawingBuffer: isE2eMode(),
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
   state.map = map;
+
+  if (isE2eMode()) {
+    document.documentElement.dataset.e2eMapRendered = "0";
+    map.once("render", () => {
+      document.documentElement.dataset.e2eMapRendered = "1";
+    });
+  }
 
   map.on("load", () => {
     for (const l of LAYER_REGISTRY) l.addSource(map);

@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { waitForConsoleMapDisplayed } = require("./e2e_utils");
 
 test.describe("LibraryReach pages (fixture mode)", () => {
   test.beforeEach(async ({ page }) => {
@@ -40,5 +41,6 @@ test.describe("LibraryReach pages (fixture mode)", () => {
     await expect(page.locator("#legend")).toBeVisible();
     await expect(page.locator("#actionDrawer")).toBeVisible();
     await expect(page.locator("#cities")).toBeVisible();
+    await waitForConsoleMapDisplayed(page);
   });
 });

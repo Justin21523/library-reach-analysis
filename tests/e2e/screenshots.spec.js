@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
+const { waitForConsoleMapDisplayed } = require("./e2e_utils");
 
 const OUT_DIR = path.join(process.cwd(), "docs", "screenshots");
 
@@ -59,6 +60,7 @@ test.describe("Showcase screenshots @screenshots", () => {
     await prep(page, { audience: "library" });
     await page.goto("/console?e2e=1");
     await expect(page.locator("#legend")).toBeVisible();
+    await waitForConsoleMapDisplayed(page);
     const sourcesFoldout = page.locator('.foldout[data-foldout="sources"]');
     if (await sourcesFoldout.evaluate((n) => n.classList.contains("collapsed")).catch(() => false)) {
       await page.getByRole("button", { name: "Data & Provenance" }).click();
@@ -76,6 +78,7 @@ test.describe("Showcase screenshots @screenshots", () => {
       await page.goto("/console?e2e=1");
       await expect(page.locator("#sheetHandle")).toBeVisible();
       await expect(page.locator("#legend")).toBeVisible();
+      await waitForConsoleMapDisplayed(page);
       await shot(page, "console-mobile.png");
     });
   });
