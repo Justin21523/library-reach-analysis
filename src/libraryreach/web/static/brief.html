@@ -41,6 +41,20 @@
             <p class="hero-lead">
               這份一頁簡報把模型輸出轉成可被理解的語言：<b>目前狀態</b>、<b>服務落差在哪裡</b>、以及<b>可以怎麼做</b>。
             </p>
+            <div class="qia" aria-label="This page answers">
+              <div class="qia-item">
+                <div class="qia-k">問題</div>
+                <div class="qia-v">如果只能用一頁溝通，怎麼把現況、落差與方案講清楚？</div>
+              </div>
+              <div class="qia-item">
+                <div class="qia-k">洞察</div>
+                <div class="qia-v">把參數假設、關鍵 KPI、文字解讀與資料來源放在同一頁，降低跨角色溝通成本。</div>
+              </div>
+              <div class="qia-item">
+                <div class="qia-k">行動</div>
+                <div class="qia-v">用控制台 Copy Link 分享同一組假設，讓不同角色看到一致的摘要與影響。</div>
+              </div>
+            </div>
             <div class="brief-meta">
               <div class="pill">Generated <span id="generatedAt">—</span></div>
               <div class="pill">Scenario <span id="scenarioName">—</span></div>
@@ -198,6 +212,11 @@
         </div>
       </footer>
     </main>
+
+    <div class="sticky-cta" aria-label="Quick actions">
+      <button id="stickyPrintBtn" class="btn primary" type="button">列印 / 存成 PDF</button>
+      <a id="stickyConsoleFromBrief" class="btn subtle" href="/console">控制台</a>
+    </div>
 
     <script src="/static/preset.js"></script>
     <script src="/static/narrative.js"></script>

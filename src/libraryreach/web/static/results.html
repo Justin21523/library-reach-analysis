@@ -32,6 +32,34 @@
     </header>
 
     <main id="main" class="home-main">
+      <section class="section page-hero">
+        <div class="hero-grid single">
+          <div>
+            <div class="hero-kicker">成果頁（投影簡報）</div>
+            <h1 class="hero-title">用三張圖，說清楚「到得了」與差距。</h1>
+            <p class="hero-lead">同一套資料，用更能被非工程角色理解的方式呈現：現況、落差熱點、以及可行的外展方案。</p>
+            <div class="qia" aria-label="This page answers">
+              <div class="qia-item">
+                <div class="qia-k">問題</div>
+                <div class="qia-v">整體可達性如何？落差熱點在哪？有哪些可行的補強方向？</div>
+              </div>
+              <div class="qia-item">
+                <div class="qia-k">洞察</div>
+                <div class="qia-v">三張圖分別對應「現況分佈」「deserts 數量」「外展候選方案」，方便投影溝通。</div>
+              </div>
+              <div class="qia-item">
+                <div class="qia-k">行動</div>
+                <div class="qia-v">用同一組假設打開控制台，調整門檻/半徑/權重，直接看指標差異。</div>
+              </div>
+            </div>
+            <div class="hero-cta">
+              <a id="heroConsoleFromResults" class="btn primary" href="/console">用同一組假設打開控制台</a>
+              <a id="heroBriefFromResults" class="btn" href="/brief">開啟一頁簡報</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="section">
         <div class="section-title">成果摘要</div>
         <div class="callout">
@@ -69,6 +97,11 @@
         <div class="card">
           <div class="card-body">
             以三段區間呈現館點可達性分佈（低/中/高）。用於溝通「整體狀況」與「需要補強的比例」。
+            <div class="hint-chips" aria-label="Legend">
+              <div class="hint-chip"><span class="legend-dot low" aria-hidden="true"></span>Low</div>
+              <div class="hint-chip"><span class="legend-dot mid" aria-hidden="true"></span>Mid</div>
+              <div class="hint-chip"><span class="legend-dot high" aria-hidden="true"></span>High</div>
+            </div>
           </div>
           <div class="chart-tools" aria-label="Chart tools">
             <button class="btn subtle chart-action" type="button" data-action="download" data-chart="chartScore">
@@ -87,6 +120,9 @@
         <div class="card">
           <div class="card-body">
             deserts 是落差提示：代表在該格網生活圈內，抵達館點的可達性低於門檻。用於設定優先順序與追蹤改善。
+            <div class="hint-chips" aria-label="Legend">
+              <div class="hint-chip"><span class="legend-dot desert" aria-hidden="true"></span>Desert count by city</div>
+            </div>
           </div>
           <div class="chart-tools" aria-label="Chart tools">
             <button class="btn subtle chart-action" type="button" data-action="download" data-chart="chartDeserts">
@@ -105,6 +141,9 @@
         <div class="card">
           <div class="card-body">
             這是候選點位排序（非最終決策）。建議搭配現場條件與合作意願做篩選。
+            <div class="hint-chips" aria-label="Legend">
+              <div class="hint-chip"><span class="legend-dot outreach" aria-hidden="true"></span>Outreach score (top sites)</div>
+            </div>
           </div>
           <div class="chart-tools" aria-label="Chart tools">
             <button class="btn subtle chart-action" type="button" data-action="download" data-chart="chartOutreach">
@@ -132,6 +171,11 @@
         </div>
       </footer>
     </main>
+
+    <div class="sticky-cta" aria-label="Quick actions">
+      <a id="stickyConsoleFromResults" class="btn primary" href="/console">打開控制台</a>
+      <a id="stickyBriefFromResults" class="btn subtle" href="/brief">一頁簡報</a>
+    </div>
 
     <script src="/static/preset.js"></script>
     <script src="/static/narrative.js"></script>

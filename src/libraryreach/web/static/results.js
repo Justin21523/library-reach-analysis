@@ -147,13 +147,14 @@ function svgBarChart({ labels, values, colors, height = 140 }) {
   return `<svg class="chart-svg" viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img">${bars}</svg>`;
 }
 
-function svgHorizontalBars(rows, { height = 220, valueKey = "count" } = {}) {
+function svgHorizontalBars(rows, { height = 220, valueKey = "count", barColor = null } = {}) {
   const w = 860;
   const rowH = 22;
   const pad = 18;
   const maxRows = Math.min(rows.length, Math.floor((height - pad * 2) / rowH));
   const data = rows.slice(0, maxRows);
   const max = Math.max(1, ...data.map((r) => Number(r[valueKey]) || 0));
+  const fill = barColor || cssVar("--chart-bar", "rgba(31,90,166,0.35)");
   const items = data
     .map((r, i) => {
       const v = Number(r[valueKey]) || 0;
@@ -161,10 +162,7 @@ function svgHorizontalBars(rows, { height = 220, valueKey = "count" } = {}) {
       const y = pad + i * rowH;
       return `
         <text x="${pad}" y="${y + 14}" font-size="12" fill="currentColor">${escapeHtml(r.label)}</text>
-        <rect x="240" y="${y + 4}" width="${barW}" height="12" rx="8" fill="${cssVar(
-          "--chart-bar",
-          "rgba(31,90,166,0.35)"
-        )}"></rect>
+        <rect x="240" y="${y + 4}" width="${barW}" height="12" rx="8" fill="${fill}"></rect>
         <text x="${240 + barW + 8}" y="${y + 14}" font-size="12" fill="currentColor">${v}</text>
       `;
     })
@@ -224,7 +222,13 @@ function renderResultsFromSummary({ summary, note }) {
     if (desertsCity.length === 0) {
       chart2.textContent = "目前沒有 deserts 可視化資料。";
     } else {
-      chart2.innerHTML = svgWithTheme(svgHorizontalBars(desertsCity, { height: 220, valueKey: "count" }));
+      chart2.innerHTML = svgWithTheme(
+        svgHorizontalBars(desertsCity, {
+          height: 220,
+          valueKey: "count",
+          barColor: cssVar("--map-desert", "rgba(225,29,72,0.65)"),
+        })
+      );
     }
   }
 
@@ -233,7 +237,9 @@ function renderResultsFromSummary({ summary, note }) {
     if (top.length === 0) {
       chart3.textContent = "目前沒有外展建議資料。";
     } else {
-      chart3.innerHTML = svgWithTheme(svgHorizontalBars(top, { height: 260, valueKey: "count" }));
+      chart3.innerHTML = svgWithTheme(
+        svgHorizontalBars(top, { height: 260, valueKey: "count", barColor: cssVar("--map-outreach", "rgba(0,114,178,0.75)") })
+      );
     }
   }
 }
@@ -395,8 +401,16 @@ async function main() {
   if (preset) {
     const consoleLink = el("openConsoleFromResults");
     const briefLink = el("openBriefFromResults");
+    const heroConsole = el("heroConsoleFromResults");
+    const heroBrief = el("heroBriefFromResults");
+    const stickyConsole = el("stickyConsoleFromResults");
+    const stickyBrief = el("stickyBriefFromResults");
     if (consoleLink) consoleLink.href = lrBuildLink("/console", preset);
     if (briefLink) briefLink.href = lrBuildLink("/brief", preset);
+    if (heroConsole) heroConsole.href = lrBuildLink("/console", preset);
+    if (heroBrief) heroBrief.href = lrBuildLink("/brief", preset);
+    if (stickyConsole) stickyConsole.href = lrBuildLink("/console", preset);
+    if (stickyBrief) stickyBrief.href = lrBuildLink("/brief", preset);
     renderAssumptions(preset);
   } else {
     renderAssumptions(null);

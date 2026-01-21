@@ -226,6 +226,8 @@ async function loadBriefData() {
     if (preset) {
       const link = el("openConsoleFromBrief");
       if (link) link.href = lrBuildLink("/console", preset);
+      const stickyLink = el("stickyConsoleFromBrief");
+      if (stickyLink) stickyLink.href = lrBuildLink("/console", preset);
     }
     const assumptions = el("assumptions");
     if (assumptions) {
@@ -345,6 +347,7 @@ async function loadBriefData() {
 function main() {
   initTheme();
   el("printBtn")?.addEventListener("click", () => window.print());
+  el("stickyPrintBtn")?.addEventListener("click", () => window.print());
   el("downloadBriefPack")?.addEventListener("click", async () => {
     const btn = el("downloadBriefPack");
     if (!btn) return;
