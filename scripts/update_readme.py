@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "READMD.md"
+OUT = ROOT / "README.md"
 SHOT_DIR = ROOT / "docs" / "screenshots"
 
 
@@ -106,7 +106,7 @@ npm run test:all
 
 ```bash
 npm run e2e:screenshots
-python scripts/update_readmd.py
+python scripts/update_readme.py
 ```
 
 ### Reports

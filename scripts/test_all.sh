@@ -16,7 +16,7 @@ echo "[3/4] Playwright tests (fixture mode) + screenshots"
 npx playwright install chromium
 npx playwright test
 
-echo "[4/4] Update READMD.md"
-python scripts/update_readmd.py
+echo "[4/4] Update README.md"
+python scripts/update_readme.py
 
 echo "Done."

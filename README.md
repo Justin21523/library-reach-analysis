@@ -1,54 +1,88 @@
-# LibraryReach (Phase 1 MVP)
+# LibraryReach
 
-LibraryReach is a library accessibility and outreach planning platform that applies transit analytics to public service planning.
+LibraryReach is a narrative-first, public-policy-style dashboard for **library accessibility** and **outreach planning**.
+It turns transit accessibility signals into explainable KPIs, maps, and a shareable brief.
 
-For a screenshot-first showcase and demo narrative, see `READMD.md`.
 
-Phase 1 focuses on an explainable baseline: **transit stop density within 500m/1km buffers** around each library branch, plus grid-based "access desert" detection and outreach site recommendations.
+## Demo links
 
-## Quickstart
+- Home: `/`
+- Results: `/results`
+- Brief: `/brief`
+- Console: `/console`
+- Method: `/method`
 
-1) Create your environment and install dependencies:
-- `pip install -e ".[dev]"`
+## Gallery (deterministic demo data)
 
-2) Configure credentials:
-- Copy `.env.example` to `.env`
-- Set `TDX_CLIENT_ID` and `TDX_CLIENT_SECRET`
+![Home (narrative hero)](docs/screenshots/home.png)
 
-3) Run the pipeline (multi-city by default via `config/default.yaml`):
-- `libraryreach run-all --scenario weekday`
-  - Use `--skip-fetch` if you already have `data/raw/tdx/stops.csv`.
+![Results (projection-ready)](docs/screenshots/results.png)
 
-4) Start the API + minimal web UI:
-- `uvicorn libraryreach.api.main:app --reload`
-- Open `http://127.0.0.1:8000/`
-  - The web UI includes a control console for what-if parameter tuning and keyboard shortcuts (press `?`).
-  - The map uses MapLibre + OSM raster tiles (internet required in the browser).
+![Brief (one-page)](docs/screenshots/brief.png)
 
-## Docker (Always-On Ingestion)
+![Console (map + controls)](docs/screenshots/console.png)
 
-- Create `.env` with TDX credentials: `cp .env.example .env`
-- Start API + background worker (auto-restart): `docker compose up -d --build`
-- If you edit `.env`, restart containers to apply env changes: `docker compose restart`
-- Default host port is `8001` (set `LR_HOST_PORT=8000 docker compose up -d --build` if you want `:8000`).
-- Tail logs:
-  - `docker compose logs -f worker`
-  - `docker compose logs -f api`
-- Tune rate limiting / retries in `config/default.yaml` under `tdx.*` (for example `min_request_interval_s`).
-- Ops notes (health/backup/autostart): `docs/10_ops.md`
+![Console (mobile bottom sheet)](docs/screenshots/console-mobile.png)
 
-## Configuration
+![Method (explainable model)](docs/screenshots/method.png)
 
-- `config/default.yaml` defines cities, buffer radii, scoring weights, thresholds, and planning parameters.
-- `config/scenarios/*.yaml` can override weights and thresholds for different time-window scenarios (weekday/weekend/after-school).
 
-## Data
+## What’s inside (recent highlights)
 
-- `data/catalogs/libraries.csv` is a project-owned library branch catalog (replace the sample rows with your real catalog).
-- `data/catalogs/outreach_candidates.csv` lists candidate outreach sites (community centers, schools, etc.).
-- Catalog schema reference: `data/catalogs/README.md`
-  - If your catalogs use Chinese city names, map them under `aoi.city_aliases` in `config/default.yaml`.
+- Narrative-first UX: unified hero + typography + story blocks (Problem → Insight → Action).
+- Projection-ready results: 3 key charts, consistent map palette, copy/download tools.
+- Control console upgrades: spotlight mode, clearer legend, action drawer feedback, library labels.
+- Mobile experience: console controls become a draggable bottom sheet + sticky CTAs on content pages.
+- Data provenance: run/source cards for traceability.
+- Deterministic fixture mode for demos/tests: `LIBRARYREACH_E2E_FIXTURES=1`.
 
-## Validation
+## Run locally
 
-- `libraryreach validate-catalogs --scenario weekday` writes `reports/catalog_validation.md` and fails on schema or consistency errors.
+### Option A: Docker (recommended)
+
+```bash
+docker compose up -d --build api
+open http://127.0.0.1:${LR_HOST_PORT:-8001}/
+```
+
+### Option B: Run API directly
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn libraryreach.api.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+## Tests (unit + Playwright + screenshots)
+
+### 1) Install Playwright
+
+```bash
+npm install
+npx playwright install --with-deps
+```
+
+### 2) Run everything (pytest + Playwright + README update)
+
+```bash
+npm run test:all
+```
+
+### One-liner (bash)
+
+```bash
+./scripts/test_all.sh
+```
+
+### 3) Generate screenshots only
+
+```bash
+npm run e2e:screenshots
+python scripts/update_readme.py
+```
+
+### Reports
+
+- Playwright HTML report: `reports/playwright-report/index.html`
+- Playwright artifacts: `reports/playwright-results/`
