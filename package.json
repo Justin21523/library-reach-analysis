@@ -8,6 +8,9 @@
     "e2e": "playwright test",
     "e2e:report": "playwright show-report reports/playwright-report",
     "e2e:screenshots": "playwright test -g \"@screenshots\"",
-    "test:all": "pytest -q && playwright test && python scripts/update_readme.py"
+    "test:all": "pytest -q && playwright test && python scripts/update_readme.py",
+    "demo:dev": "python3 -m http.server 4173 --directory demo-app",
+    "demo:build": "node -e \"require('fs').accessSync('demo-app/index.html')\"",
+    "demo:preview": "python3 -m http.server 4173 --directory demo-app"
   }
 }
